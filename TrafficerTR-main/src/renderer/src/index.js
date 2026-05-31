@@ -1,0 +1,1047 @@
+const translations = {
+  en: {
+    'splash.subtitle': 'Preparing bot console',
+    'nav.general': 'General',
+    'nav.botting': 'Botting',
+    'nav.scripting': 'Scripting',
+    'nav.proxy': 'Proxy',
+    'nav.webhook': 'Webhook',
+    'nav.about': 'About',
+    'settings.app': 'App settings',
+    'settings.language': 'Language',
+    'settings.theme': 'Theme',
+    'settings.bot': 'Bot settings',
+    'theme.winter': 'Winter',
+    'theme.summer': 'Summer',
+    'bot.serverChat': 'Server',
+    'placeholder.script':
+      '# Repeat, random delay, variables\nrepeat 3\nchat Hello {player} {random:6}\ndelay 500 1500\nend',
+    'placeholder.username': 'username / token',
+    'placeholder.server': 'localhost:25565',
+    'placeholder.joinMessage': '/register',
+    'placeholder.chatMsg': 'Message',
+    'placeholder.number': 'number',
+    'placeholder.coords': 'eg: 0 1 0',
+    'placeholder.command': 'command',
+    'placeholder.proxy': 'Proxy:Port:Username:Password',
+    'notify.reset': 'Config has been reset. Please restart the app',
+    'notify.clearProxy': 'Cleared duplicate proxies',
+    'notify.proxyStopped': 'Stopped proxy test.',
+    'notify.maintenanceTitle': 'Temporarily under maintenance',
+    'notify.maintenanceBody': 'This feature is paused and will return in future versions.',
+    'notify.updateTitle': 'Client update available',
+    'notify.updateBody':
+      'This client is an old version. Current: v{current}. New: v{latest}. Click this notification to open GitHub and download the new version.',
+    'bot.connected': 'Connected to the server.',
+    'bot.kicked': 'Kicked: ',
+    'bot.connection': 'Connection: '
+  },
+  tr: {
+    'splash.subtitle': 'Bot konsolu hazırlanıyor',
+    'nav.general': 'Genel',
+    'nav.botting': 'Botlar',
+    'nav.scripting': 'Script',
+    'nav.proxy': 'Proxy',
+    'nav.webhook': 'Webhook',
+    'nav.about': 'Hakkında',
+    'settings.app': 'Uygulama ayarları',
+    'settings.language': 'Dil',
+    'settings.theme': 'Tema',
+    'settings.bot': 'Bot ayarları',
+    'theme.winter': 'Kış',
+    'theme.summer': 'Yaz',
+    'bot.serverChat': 'Sunucu',
+    'placeholder.script':
+      '# Tekrar, rastgele bekleme, değişkenler\nrepeat 3\nchat Merhaba {player} {random:6}\ndelay 500 1500\nend',
+    'placeholder.username': 'kullanıcı adı / token',
+    'placeholder.server': 'localhost:25565',
+    'placeholder.joinMessage': '/register',
+    'placeholder.chatMsg': 'Mesaj',
+    'placeholder.number': 'sayı',
+    'placeholder.coords': 'örn: 0 1 0',
+    'placeholder.command': 'komut',
+    'placeholder.proxy': 'Proxy:Port:Kullanıcı:Şifre',
+    'notify.reset': 'Config sıfırlandı. Lütfen uygulamayı yeniden başlat.',
+    'notify.clearProxy': 'Tekrarlanan proxyler temizlendi',
+    'notify.proxyStopped': 'Proxy testi durduruldu.',
+    'notify.maintenanceTitle': 'Geçici olarak bakımda',
+    'notify.maintenanceBody': 'Bu özellik askıya alındı ve sonraki versiyonlarda gelecek.',
+    'notify.updateTitle': 'Client eski bir sürüm',
+    'notify.updateBody':
+      'Şu an bu client eski bir sürüm. Mevcut: v{current}. Yeni: v{latest}. Yeni sürüm için GitHub sayfasına yönlendirmeme izin vermek istersen bildirime tıkla.',
+    'bot.connected': 'Sunucuya bağlandı.',
+    'bot.kicked': 'Atıldı: ',
+    'bot.connection': 'Bağlantı: '
+  }
+}
+
+const textKeys = {
+  'Username:': 'Username:',
+  'Server:': 'Server:',
+  'Max accounts:': 'Max accounts:',
+  'Join delay:': 'Join delay:',
+  'Join message:': 'Join message:',
+  Start: 'Start',
+  Stop: 'Stop',
+  Options: 'Options',
+  'Name:': 'Name:',
+  Default: 'Default',
+  Random: 'Random',
+  Legit: 'Legit',
+  File: 'File',
+  'Choose a file': 'Choose a file',
+  'Auth:': 'Auth:',
+  Cracked: 'Cracked',
+  'Version:': 'Version:',
+  Auto: 'Auto',
+  '26.1.2 (Paused)': '26.1.2 (Paused)',
+  '26.1.1 (Paused)': '26.1.1 (Paused)',
+  '26.1 (Paused)': '26.1 (Paused)',
+  'Mode:': 'Mode:',
+  Normal: 'Normal',
+  Minimal: 'Minimal',
+  Select: 'Select',
+  Controls: 'Controls',
+  Chat: 'Chat',
+  Hotbar: 'Hotbar',
+  Inventory: 'Inventory',
+  Move: 'Move',
+  Look: 'Look',
+  AntiAFK: 'AntiAFK',
+  KillAura: 'KillAura',
+  Interact: 'Interact',
+  Nuker: 'Nuker',
+  Pathfinder: 'Pathfinder',
+  Disconnect: 'Disconnect',
+  Send: 'Send',
+  Spam: 'Spam',
+  Delay: 'Delay',
+  Bypass: 'Bypass',
+  Set: 'Set',
+  Use: 'Use',
+  Slot: 'Slot',
+  Left: 'Left',
+  Right: 'Right',
+  All: 'All',
+  'Close window': 'Close window',
+  Close: 'Close',
+  Reset: 'Reset',
+  Forward: 'Forward',
+  Backwards: 'Backwards',
+  Jump: 'Jump',
+  Sprint: 'Sprint',
+  Sneak: 'Sneak',
+  North: 'North',
+  South: 'South',
+  East: 'East',
+  West: 'West',
+  'Anti AFK': 'Anti AFK',
+  'Interact [Premium]': 'Interact [Premium]',
+  Coords: 'Coords',
+  'Mouse button': 'Mouse button',
+  Targets: 'Targets',
+  Player: 'Player',
+  Vehicle: 'Vehicle',
+  Mob: 'Mob',
+  Animal: 'Animal',
+  Settings: 'Settings',
+  Range: 'Range',
+  Priority: 'Priority',
+  Nearest: 'Nearest',
+  Health: 'Health',
+  'Max targets': 'Max targets',
+  'Only visible': 'Only visible',
+  'Hit once': 'Hit once',
+  Rotate: 'Rotate',
+  Toggle: 'Toggle',
+  'Target mode': 'Target mode',
+  Blacklist: 'Blacklist',
+  Whitelist: 'Whitelist',
+  Blocks: 'Blocks',
+  'Blcks/tick': 'Blcks/tick',
+  'Blocks/tick': 'Blocks/tick',
+  Commands: 'Commands',
+  Run: 'Run',
+  'Follows a player': 'Follows a player',
+  'Forms a line': 'Forms a line',
+  'Walks to a location': 'Walks to a location',
+  'Stops pathfinder': 'Stops pathfinder',
+  'Show chat': 'Show chat',
+  'Auto scroll': 'Auto scroll',
+  Clear: 'Clear',
+  Script: 'Script',
+  'Run on connect': 'Run on connect',
+  'Run on spawn': 'Run on spawn',
+  'Type:': 'Type:',
+  None: 'None',
+  Test: 'Test',
+  'Proxy per bot': 'Proxy per bot',
+  'Randomize order': 'Randomize order',
+  Scrape: 'Scrape',
+  'Clear Dupe': 'Clear Dupe',
+  'Proxy test': 'Proxy test',
+  Timeout: 'Timeout',
+  Logs: 'Logs',
+  'Webhook:': 'Webhook:',
+  Actions: 'Actions',
+  'Proxy error': 'Proxy error',
+  'Proxy logs': 'Proxy logs',
+  Feedback: 'Feedback',
+  Joins: 'Joins',
+  Kicks: 'Kicks',
+  'Auth message': 'Auth message',
+  'Linear delay': 'Linear delay',
+  'Auto Reconnect': 'Auto Reconnect',
+  'Physics [Premium]': 'Physics [Premium]',
+  'Map notifications [Premium]': 'Map notifications [Premium]',
+  'Accept resource packs [Premium]': 'Accept resource packs [Premium]',
+  'Chat [Premium]': 'Chat [Premium]',
+  'Feedback [Premium]': 'Feedback [Premium]',
+  'Join [Premium]': 'Join [Premium]',
+  'Kicks [Premium]': 'Kicks [Premium]',
+  'Auth message [Premium]': 'Auth message [Premium]',
+  Config: 'Config',
+  'My name is Glock (Cmmdx).': 'My name is Glock (Cmmdx).',
+  'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
+    'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.',
+  'This build is maintained independently and is not connected to the original project social links.':
+    'This build is maintained independently and is not connected to the original project social links.'
+}
+
+const localizedText = {
+  tr: {
+    'Username:': 'Kullanıcı adı:',
+    'Server:': 'Sunucu:',
+    'Max accounts:': 'Maks. hesap:',
+    'Join delay:': 'Giriş gecikmesi:',
+    'Join message:': 'Giriş mesajı:',
+    Start: 'Başlat',
+    Stop: 'Durdur',
+    Options: 'Seçenekler',
+    'Name:': 'İsim:',
+    Default: 'Varsayılan',
+    Random: 'Rastgele',
+    Legit: 'Gerçekçi',
+    File: 'Dosya',
+    'Choose a file': 'Dosya seç',
+    'Auth:': 'Giriş:',
+    Cracked: 'Cracked',
+    'Version:': 'Sürüm:',
+    Auto: 'Otomatik',
+    '26.1.2 (Paused)': '26.1.2 (Askıda)',
+    '26.1.1 (Paused)': '26.1.1 (Askıda)',
+    '26.1 (Paused)': '26.1 (Askıda)',
+    'Mode:': 'Mod:',
+    Normal: 'Normal',
+    Minimal: 'Minimal',
+    Select: 'Seç',
+    Controls: 'Kontroller',
+    Chat: 'Sohbet',
+    Hotbar: 'Hotbar',
+    Inventory: 'Envanter',
+    Move: 'Hareket',
+    Look: 'Bakış',
+    AntiAFK: 'Anti AFK',
+    KillAura: 'KillAura',
+    Interact: 'Etkileşim',
+    Nuker: 'Nuker',
+    Pathfinder: 'Yol Bulucu',
+    Disconnect: 'Bağlantıyı kes',
+    Send: 'Gönder',
+    Spam: 'Spam',
+    Delay: 'Gecikme',
+    Bypass: 'Bypass',
+    Set: 'Ayarla',
+    Use: 'Kullan',
+    Slot: 'Slot',
+    Left: 'Sol',
+    Right: 'Sağ',
+    All: 'Tümü',
+    'Close window': 'Pencereyi kapat',
+    Close: 'Kapat',
+    Reset: 'Sıfırla',
+    Forward: 'İleri',
+    Backwards: 'Geri',
+    Jump: 'Zıpla',
+    Sprint: 'Koş',
+    Sneak: 'Eğil',
+    North: 'Kuzey',
+    South: 'Güney',
+    East: 'Doğu',
+    West: 'Batı',
+    'Anti AFK': 'Anti AFK',
+    'Interact [Premium]': 'Etkileşim [Premium]',
+    Coords: 'Koordinat',
+    'Mouse button': 'Fare tuşu',
+    Targets: 'Hedefler',
+    Player: 'Oyuncu',
+    Vehicle: 'Araç',
+    Mob: 'Mob',
+    Animal: 'Hayvan',
+    Settings: 'Ayarlar',
+    Range: 'Menzil',
+    Priority: 'Öncelik',
+    Nearest: 'En yakın',
+    Health: 'Can',
+    'Max targets': 'Maks. hedef',
+    'Only visible': 'Sadece görünen',
+    'Hit once': 'Bir kez vur',
+    Rotate: 'Döndür',
+    Toggle: 'Aç/Kapat',
+    'Target mode': 'Hedef modu',
+    Blacklist: 'Kara liste',
+    Whitelist: 'Beyaz liste',
+    Blocks: 'Bloklar',
+    'Blcks/tick': 'Blok/tick',
+    'Blocks/tick': 'Blok/tick',
+    Commands: 'Komutlar',
+    Run: 'Çalıştır',
+    'Follows a player': 'Bir oyuncuyu takip eder',
+    'Forms a line': 'Sıra oluşturur',
+    'Walks to a location': 'Bir konuma yürür',
+    'Stops pathfinder': 'Yol bulucuyu durdurur',
+    'Show chat': 'Sohbeti göster',
+    'Auto scroll': 'Otomatik kaydır',
+    Clear: 'Temizle',
+    Script: 'Script',
+    'Run on connect': 'Bağlanınca çalıştır',
+    'Run on spawn': 'Spawn olunca çalıştır',
+    'Type:': 'Tür:',
+    None: 'Yok',
+    Test: 'Test',
+    'Proxy per bot': 'Bot başına proxy',
+    'Randomize order': 'Sırayı karıştır',
+    Scrape: 'Çek',
+    'Clear Dupe': 'Tekrarları sil',
+    'Proxy test': 'Proxy testi',
+    Timeout: 'Zaman aşımı',
+    Logs: 'Kayıtlar',
+    'Webhook:': 'Webhook:',
+    Actions: 'Aksiyonlar',
+    'Proxy error': 'Proxy hatası',
+    'Proxy logs': 'Proxy kayıtları',
+    Feedback: 'Geri bildirim',
+    Joins: 'Girişler',
+    Kicks: 'Atılmalar',
+    'Auth message': 'Giriş mesajı',
+    'Linear delay': 'Sıralı gecikme',
+    'Auto Reconnect': 'Otomatik bağlan',
+    'Physics [Premium]': 'Fizik [Premium]',
+    'Map notifications [Premium]': 'Harita bildirimleri [Premium]',
+    'Accept resource packs [Premium]': 'Resource pack kabul et [Premium]',
+    'Chat [Premium]': 'Sohbet [Premium]',
+    'Feedback [Premium]': 'Geri bildirim [Premium]',
+    'Join [Premium]': 'Giriş [Premium]',
+    'Kicks [Premium]': 'Atılmalar [Premium]',
+    'Auth message [Premium]': 'Giriş mesajı [Premium]',
+    Config: 'Config',
+    'My name is Glock (Cmmdx).': 'Benim adım Glock (Cmmdx).',
+    'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
+      'TrafficerTR yapısını temiz düzeltmeler, yeni Minecraft uyumluluğu ve kendi derleyip çalıştırmak isteyenler için daha akıcı bir deneyim odağıyla geliştiriyorum.',
+    'This build is maintained independently and is not connected to the original project social links.':
+      'Bu sürüm bağımsız olarak geliştirilmektedir ve orijinal projenin sosyal bağlantılarıyla ilişkili değildir.'
+  }
+}
+
+const placeholderKeys = {
+  scriptText: 'placeholder.script',
+  username: 'placeholder.username',
+  server: 'placeholder.server',
+  joinMessage: 'placeholder.joinMessage',
+  chatMsg: 'placeholder.chatMsg',
+  invSlot: 'placeholder.number',
+  interactCoords: 'placeholder.coords',
+  pathFinderCommand: 'placeholder.command',
+  proxyList: 'placeholder.proxy'
+}
+
+const runtimeText = {
+  tr: {
+    Info: 'Bilgi',
+    Error: 'Hata',
+    Success: 'Başarılı',
+    'Script Error': 'Script Hatası',
+    'Version disabled': 'Sürüm devre dışı',
+    'Stopped sending bots.': 'Bot gönderimi durduruldu.',
+    'Stopped running scripts.': 'Script çalıştırma durduruldu.',
+    'Please enter script text': 'Lütfen script metni gir.',
+    'No bots selected': 'Seçili bot yok.',
+    'Please insert username': 'Lütfen kullanıcı adı gir.',
+    'Please select name file': 'Lütfen isim dosyası seç.',
+    'Invalid server address': 'Geçersiz sunucu adresi.',
+    'Please enter proxy list': 'Lütfen proxy listesi gir.',
+    'Select proxy type': 'Proxy türü seç.',
+    'Testing proxies...': 'Proxyler test ediliyor...',
+    'Scraping proxies...': 'Proxyler çekiliyor...',
+    'Failed to scrape proxies': 'Proxy çekme başarısız.',
+    'Please enter a valid Discord webhook URL.': 'Lütfen geçerli bir Discord webhook URL gir.',
+    'Webhook test sent.': 'Webhook testi gönderildi.',
+    '26.1.x support is paused until Mineflayer/minecraft-protocol adds native support.':
+      '26.1.x desteği Mineflayer/minecraft-protocol native destek ekleyene kadar askıda.'
+  }
+}
+
+let currentLanguage = 'en'
+let regionalClockTimer
+
+const regionalClocks = {
+  en: {
+    locale: 'en-US',
+    timeZone: 'America/New_York',
+    label: 'US'
+  },
+  tr: {
+    locale: 'tr-TR',
+    timeZone: 'Europe/Istanbul',
+    label: 'TR'
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  restoreUISettings()
+  applyUISettings()
+  startRegionalClock()
+  setTimeout(() => {
+    document.getElementById('splashScreen')?.classList.add('hide')
+  }, 3900)
+  window.electron?.ipcRenderer.send('loaded')
+
+  window.electron?.ipcRenderer.on('setConfig', (event, config, version) => {
+    setConfigValues(config)
+    applyUISettings()
+    document.getElementById('versionString').innerHTML = `v${version.current}`
+  })
+
+  window.electron?.ipcRenderer.on('fileSelected', (event, id, path) => {
+    const filename = path.match(/[^\\]+$/)[0]
+    document.getElementById(id).innerHTML = filename
+  })
+
+  window.electron?.ipcRenderer.on('showBottab', () => {
+    document.getElementById('bottingTab').click()
+  })
+
+  const valueElements = document.querySelectorAll(
+    'input[type="text"], input[type="number"], input[type="range"], select, textarea'
+  )
+  valueElements.forEach((select) => {
+    select.addEventListener('change', valueChange)
+  })
+
+  const checkboxElements = document.querySelectorAll('input[type="checkbox"]')
+  checkboxElements.forEach((check) => {
+    check.addEventListener('click', checkboxClick)
+  })
+
+  const buttonElements = document.querySelectorAll('button, .button')
+  buttonElements.forEach((button) => {
+    button.addEventListener('click', buttonClick)
+  })
+
+  const tabElements = document.querySelectorAll('.tab, .tab-2')
+  tabElements.forEach((tab) => {
+    tab.addEventListener('click', navClick)
+  })
+
+  window.electron?.ipcRenderer.on('initConfig', () => {
+    valueElements.forEach((select) => {
+      if (!select.id) return
+      window.electron?.ipcRenderer.send('setConfig', 'value', select.id, select.value)
+    })
+    checkboxElements.forEach((check) => {
+      if (!check.id) return
+      window.electron?.ipcRenderer.send('setConfig', 'boolean', check.id, check.checked)
+    })
+  })
+
+  window.electron?.ipcRenderer.on('notify', (event, title, body, type, img, keep) => {
+    notify(title, body, type, img, keep)
+  })
+
+  window.electron?.ipcRenderer.on('updateAvailable', (event, update) => {
+    const body = t('notify.updateBody')
+      .replace('{current}', update.currentVersion)
+      .replace('{latest}', update.latestVersion)
+    notify(t('notify.updateTitle'), body, 'warning', './assets/icons/earth-logo.svg', true, () => {
+      window.electron?.ipcRenderer.send('openExternal', update.url)
+    })
+  })
+
+  window.electron?.ipcRenderer.on('proxyEvent', (event, info) => {
+    if (info.event === 'scraped') {
+      logProxy('Scraped', 'success', '')
+    } else {
+      logProxy(info.proxy, info.event, info.message)
+    }
+    document.getElementById('proxyCheckStatusCount').innerHTML = info.count
+    switch (info.event) {
+      case 'start':
+        document.getElementById('proxyCheckStatus').style.display = 'block'
+        document.getElementById('proxyList').value = ''
+        break
+      case 'stop':
+        document.getElementById('proxyCheckStatus').style.display = 'none'
+        notify('Info', t('notify.proxyStopped'), 'success')
+        updateProxyList()
+        break
+      case 'success':
+        document.getElementById('proxyList').value += `${info.proxy}\n`
+        updateProxyList()
+        break
+      case 'scraped':
+        document.getElementById('proxyList').value += `\n${info.message}\n`
+        clearProxyEmpty()
+        updateProxyList()
+        break
+      default:
+    }
+  })
+
+  window.electron?.ipcRenderer.on('botEvent', (event, info) => {
+    switch (info.event) {
+      case 'login':
+        addPlayer(info.id)
+        logChat('Bot', info.id, t('bot.connected'))
+        break
+      case 'authmsg':
+        directChat(
+          `<div class="space-h"><div class="flex"><p class="text-sm link">Auth</p></div><div class="space-h-f pl-2"><p class="text-sm" style="user-select: text;">${info.id}</p></div></div><p class="text-sm-2" style="user-select: text;"> First time signing in. Use a web browser to open the page <a href="https://www.microsoft.com/link" target="_blank" rel="noreferrer" class="text-sm-2">https://www.microsoft.com/link</a> and enter the code: <a class="text-sm-2" style="border-bottom: solid 1px #a1a1a1; cursor: pointer;" onclick="navigator.clipboard.writeText('${info.message}')">${info.message} [click to copy]</a></p>`
+        )
+        break
+      case 'easymcAuth':
+        directChat(
+          `<div class="space-h"><div class="flex"><p class="text-sm link">EasyMC</p></div><div class="space-h-f pl-2"><p class="text-sm" style="user-select: text;">Authentication</p></div></div><p class="text-sm-2" style="user-select: text;"> EasyMC authentication requires an alt token. Check <a href="https://easymc.io/get" target="_blank" rel="noreferrer" class="text-sm-2">https://easymc.io/get</a> to get a token.</p>`
+        )
+        break
+      case 'chat':
+        logChat('Bot', info.id, info.message)
+        break
+      case 'serverchat':
+        logChat(t('bot.serverChat'), info.id, info.message)
+        break
+      case 'kicked':
+        logChat('Bot', info.id, t('bot.kicked') + info.message)
+        removePlayer(info.id)
+        break
+      case 'end':
+        logChat('Bot', info.id, t('bot.connection') + info.message)
+        removePlayer(info.id)
+        break
+      default:
+    }
+  })
+  // setInterval(() => {
+  //   logChat('Bot', 'Username', 'TEST')
+  //   notify('TEST', 'Welcome back User', 'success')
+  //   logProxy('proxy:port', 'fail', 'Test')
+  // }, 1000)
+})
+
+function valueChange(event) {
+  const selectedValue = event.target.value
+  const selectId = event.target.id
+  window.electron?.ipcRenderer.send('setConfig', 'value', selectId, selectedValue)
+
+  switch (selectId) {
+    case 'nameType':
+      checkUsername()
+      break
+    case 'uiLanguage':
+    case 'uiTheme':
+      saveUISettings()
+      applyUISettings()
+      break
+    case 'webhookLink':
+      if (selectedValue.trim()) {
+        enableAllWebhookOptions()
+      }
+      break
+    default:
+  }
+}
+
+function enableAllWebhookOptions() {
+  const checkboxIds = [
+    'enableWebhook',
+    'actionLogWebhook',
+    'proxyLogWebhook',
+    'chatLogWebhook',
+    'feedbackLogWebhook',
+    'joinLogWebhook',
+    'kickLogWebhook',
+    'authLogWebhook'
+  ]
+
+  checkboxIds.forEach((id) => {
+    const checkbox = document.getElementById(id)
+    if (!checkbox) return
+    checkbox.checked = true
+    window.electron?.ipcRenderer.send('setConfig', 'boolean', id, true)
+  })
+}
+
+function buttonClick(event) {
+  const buttonId = event.target.id
+  switch (buttonId) {
+    case 'minimize':
+      window.electron?.ipcRenderer.send('win:invoke', 'min')
+      break
+    case 'close':
+      window.electron?.ipcRenderer.send('win:invoke', 'close')
+      break
+    case 'resetConfig':
+      window.electron?.ipcRenderer.send('deleteConfig')
+      notify('Info', t('notify.reset'), 'success')
+      break
+    case 'nameFileLabel':
+      window.electron?.ipcRenderer.send('open', 'nameFileLabel', 'Name File')
+      break
+    case 'selectAll':
+      selectAll()
+      break
+    case 'proxyClearDupe':
+      clearDupe()
+      notify('Info', t('notify.clearProxy'), 'success')
+      break
+    default:
+      window.electron?.ipcRenderer.send('btnClick', buttonId)
+      break
+  }
+}
+
+function checkboxClick(event) {
+  const checkId = event.target.id
+  const state = event.target.checked
+  window.electron?.ipcRenderer.send('setConfig', 'boolean', checkId, state)
+  window.electron?.ipcRenderer.send('checkboxClick', checkId, state)
+}
+
+function navClick(event) {
+  const target = event.currentTarget
+  if (target.classList.contains('maintenance')) {
+    notify(t('notify.maintenanceTitle'), t('notify.maintenanceBody'), 'warning')
+    return
+  }
+  if (target.classList.contains('disabled')) return
+
+  const classes = target.classList
+  const navName = target.dataset.tab || target.innerText.toLowerCase()
+  const tabContent = document.getElementsByClassName(classes[1])
+
+  Array.from(tabContent).forEach((content) => {
+    if (!content.classList.contains(classes[0])) {
+      content.style.display = 'none'
+    }
+  })
+
+  const selectedContent = document.getElementById(navName)
+  if (!selectedContent) return
+  selectedContent.style.display = 'block'
+
+  const tabs = document.getElementsByClassName(classes[0])
+  Array.from(tabs).forEach((tab) => {
+    tab.classList.remove('selected')
+  })
+
+  target.classList.add('selected')
+}
+
+function checkUsername() {
+  const nameType = document.getElementById('nameType')
+  const fileDiv = document.getElementById('nameFileDiv')
+
+  const isFileBased = nameType.value === 'file'
+  fileDiv.style.display = isFileBased ? 'block' : 'none'
+}
+
+function setConfigValues(obj) {
+  if (!obj) return
+  for (const keyType in obj) {
+    const keys = Object.keys(obj[keyType])
+    for (const key of keys) {
+      const element = document.getElementById(key)
+      if (element) {
+        if (keyType === 'value') {
+          element.value = obj.value[key]
+        } else if (keyType === 'boolean') {
+          element.checked = obj.boolean[key]
+        }
+      }
+    }
+  }
+  checkUsername()
+}
+
+function restoreUISettings() {
+  const savedLanguage = localStorage.getItem('trafficertr.language')
+  const savedTheme = localStorage.getItem('trafficertr.theme')
+  const languageSelect = document.getElementById('uiLanguage')
+  const themeSelect = document.getElementById('uiTheme')
+
+  if (savedLanguage && languageSelect) languageSelect.value = savedLanguage
+  if (savedTheme && themeSelect) themeSelect.value = savedTheme
+}
+
+function saveUISettings() {
+  const language = document.getElementById('uiLanguage')?.value || 'en'
+  const theme = document.getElementById('uiTheme')?.value || 'winter'
+
+  localStorage.setItem('trafficertr.language', language)
+  localStorage.setItem('trafficertr.theme', theme)
+}
+
+function applyUISettings() {
+  const languageSelect = document.getElementById('uiLanguage')
+  const themeSelect = document.getElementById('uiTheme')
+  currentLanguage = languageSelect?.value || 'en'
+  const theme = themeSelect?.value || 'winter'
+
+  document.documentElement.lang = currentLanguage
+  document.body.classList.toggle('theme-summer', theme === 'summer')
+  document.body.classList.toggle('theme-winter', theme !== 'summer')
+  document.body.dataset.theme = theme
+
+  saveUISettings()
+  applyTranslations()
+  updateRegionalClock()
+}
+
+function startRegionalClock() {
+  clearInterval(regionalClockTimer)
+  updateRegionalClock()
+  regionalClockTimer = setInterval(updateRegionalClock, 1000)
+}
+
+function updateRegionalClock() {
+  const clock = document.getElementById('idUptime')
+  if (!clock) return
+
+  const settings = regionalClocks[currentLanguage] || regionalClocks.en
+  const now = new Date()
+  const timeText = new Intl.DateTimeFormat(settings.locale, {
+    timeZone: settings.timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).format(now)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: settings.timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(now)
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0)
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0)
+  const phase = getRegionalDayPhase(hour, minute)
+
+  clock.textContent = `${timeText} ${settings.label}`
+  clock.title = settings.timeZone
+  document.body.dataset.timePhase = phase
+  document.body.classList.toggle('time-dawn', phase === 'dawn')
+  document.body.classList.toggle('time-day', phase === 'day')
+  document.body.classList.toggle('time-evening', phase === 'evening')
+  document.body.classList.toggle('time-night', phase === 'night')
+  document.body.style.setProperty('--day-progress', ((hour * 60 + minute) / 1440).toFixed(3))
+}
+
+function getRegionalDayPhase(hour, minute) {
+  const totalMinutes = hour * 60 + minute
+  if (totalMinutes >= 300 && totalMinutes < 420) return 'dawn'
+  if (totalMinutes >= 420 && totalMinutes < 1020) return 'day'
+  if (totalMinutes >= 1020 && totalMinutes < 1200) return 'evening'
+  return 'night'
+}
+
+function t(key) {
+  return translations[currentLanguage]?.[key] || translations.en[key] || key
+}
+
+function runtimeTranslate(text) {
+  return runtimeText[currentLanguage]?.[text] || text
+}
+
+function translateExactText(text) {
+  if (!text) return text
+  const key = textKeys[text] || text
+  return currentLanguage === 'en' ? key : localizedText[currentLanguage]?.[key] || key
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach((element) => {
+    element.textContent = t(element.dataset.i18n)
+  })
+
+  const candidates = document.querySelectorAll('p, button, label, li, option, .input-file')
+  candidates.forEach((element) => {
+    if (element.dataset.i18n) return
+    if (element.closest('#botList, #chatBox, #proxyLogbox, #notifications')) return
+
+    const textNode = Array.from(element.childNodes).find((node) => {
+      return node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+    })
+    if (!textNode) return
+
+    const trimmed = textNode.textContent.trim()
+    const key = element.dataset.i18nAuto || textKeys[trimmed]
+    if (!key) return
+
+    element.dataset.i18nAuto = key
+    const translated = translateExactText(key)
+    textNode.textContent = textNode.textContent.replace(trimmed, translated)
+  })
+
+  Object.entries(placeholderKeys).forEach(([id, key]) => {
+    const element = document.getElementById(id)
+    if (element) element.placeholder = t(key)
+  })
+}
+
+function notify(title, body, type, img, keep, action) {
+  const translatedTitle = runtimeTranslate(title)
+  const translatedBody = runtimeTranslate(body)
+  const notification = document.createElement('li')
+  notification.className = type
+  if (action) notification.classList.add('clickable')
+
+  const top = document.createElement('div')
+  top.className = 'space-h'
+
+  const topbar = document.createElement('div')
+  topbar.className = 'flex'
+
+  const titleText = document.createElement('p')
+  titleText.className = 'text-sm'
+  titleText.innerHTML = translatedTitle
+  topbar.appendChild(titleText)
+
+  const closeDiv = document.createElement('div')
+  const closeBtn = document.createElement('p')
+  closeBtn.className = 'text-sm'
+  closeBtn.innerHTML = 'X'
+  closeBtn.onclick = (event) => {
+    event.stopPropagation()
+    rmNotification()
+  }
+  closeDiv.appendChild(closeBtn)
+
+  top.appendChild(topbar)
+  top.appendChild(closeDiv)
+
+  const bodyDiv = document.createElement('div')
+  bodyDiv.className = 'n-message'
+  const bodyText = document.createElement('p')
+  bodyText.className = 'tip-sm'
+  bodyText.innerText = translatedBody
+  bodyDiv.appendChild(bodyText)
+  if (img) {
+    const imgTag = document.createElement('img')
+    imgTag.src = img
+    bodyDiv.appendChild(imgTag)
+  }
+
+  notification.appendChild(top)
+  notification.appendChild(bodyDiv)
+  if (action) {
+    notification.addEventListener('click', () => {
+      action()
+      rmNotification()
+    })
+  }
+
+  document.getElementById('notifications').appendChild(notification)
+
+  if (!keep) {
+    const progress = document.createElement('div')
+    progress.className = 'n-progress'
+    notification.appendChild(progress)
+    setTimeout(() => {
+      rmNotification()
+    }, 3000)
+  }
+  function rmNotification() {
+    notification.classList.add('fade')
+    setTimeout(() => {
+      notification.remove()
+    }, 300)
+  }
+}
+
+function addPlayer(name) {
+  const list = document.getElementById('botList')
+  const auto = document.getElementById('autoSelect').checked
+  const b = document.createElement('li')
+  b.className = 'botListItem'
+  b.innerHTML = name
+  b.onclick = () => {
+    b.classList.toggle('selected')
+    updateSelected()
+  }
+  list.appendChild(b)
+  list.scrollTop = list.scrollHeight
+  updateBotCount()
+  if (auto) {
+    selectAll('auto')
+  }
+}
+
+function removePlayer(name) {
+  const list = document.querySelectorAll('.botListItem')
+  list.forEach((bot) => {
+    if (bot.innerHTML === name) {
+      bot.remove()
+      updateSelected()
+    }
+  })
+  updateBotCount()
+}
+
+function updateBotCount() {
+  const count = document.getElementById('botCount')
+  const list = document.getElementById('botList')
+  count.innerHTML = list.children.length
+}
+
+function selectAll(auto) {
+  const list = document.getElementById('botList')
+  const allSelected = Array.from(list.children).every((li) => li.classList.contains('selected'))
+  Array.from(list.children).forEach((bot) => {
+    if (auto) {
+      bot.classList.toggle('selected', true)
+    } else {
+      bot.classList.toggle('selected', !allSelected)
+    }
+  })
+  updateSelected()
+}
+
+function updateSelected() {
+  const list = document.getElementById('botList')
+  const selectedBots = Array.from(list.children).filter((bot) => bot.classList.contains('selected'))
+  window.electron?.ipcRenderer.send(
+    'playerList',
+    selectedBots.map((bot) => bot.innerHTML)
+  )
+}
+
+function logProxy(proxy, type, message) {
+  const scroll = document.getElementById('autoScrollProxy').checked
+  const logBox = document.getElementById('proxyLogbox')
+  const li = document.createElement('li')
+  li.className = type
+  const updiv = document.createElement('div')
+  updiv.className = 'space-h'
+
+  const ddiv = document.createElement('div')
+  const msg = document.createElement('p')
+  msg.className = 'text-sm-2 mu-1'
+  msg.style = 'user-select: text;'
+  msg.innerHTML = message
+  ddiv.appendChild(msg)
+
+  const pl = document.createElement('p')
+  pl.style = 'user-select: text;'
+  pl.className = 'text-sm'
+  pl.innerHTML = proxy
+  updiv.appendChild(pl)
+
+  const pr = document.createElement('p')
+  pr.className = 'text-sm'
+  pr.innerHTML = type
+
+  updiv.appendChild(pr)
+
+  li.appendChild(updiv)
+  li.appendChild(ddiv)
+
+  logBox.appendChild(li)
+  if (scroll) {
+    logBox.scrollTop = logBox.scrollHeight
+  }
+}
+
+function clearProxyEmpty() {
+  const textarea = document.getElementById('proxyList')
+  const lines = textarea.value.split('\n')
+  const nonEmptyLines = lines.filter(function (line) {
+    return line.trim() !== ''
+  })
+  textarea.value = nonEmptyLines.join('\n')
+}
+
+function clearDupe() {
+  const textarea = document.getElementById('proxyList')
+  const lines = textarea.value.split('\n')
+  const uniqueLines = {}
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    uniqueLines[line] = true
+  }
+  const uniqueLinesArray = Object.keys(uniqueLines)
+  const result = uniqueLinesArray.join('\n')
+  textarea.value = result
+}
+
+function updateProxyList() {
+  window.electron?.ipcRenderer.send(
+    'setConfig',
+    'value',
+    'proxyList',
+    document.getElementById('proxyList').value
+  )
+}
+
+function logChat(prefix, name, text) {
+  const enable = document.getElementById('enableChat').checked
+  if (!enable) return
+  const chatBox = document.getElementById('chatBox')
+  const scroll = document.getElementById('autoScrollChat').checked
+
+  const li = document.createElement('li')
+
+  const spaceHDiv = document.createElement('div')
+  spaceHDiv.className = 'space-h'
+
+  const flexDiv = document.createElement('div')
+  flexDiv.className = 'flex'
+
+  const prefixP = document.createElement('p')
+  prefixP.className = 'text-sm link'
+  prefixP.textContent = prefix
+
+  flexDiv.appendChild(prefixP)
+
+  const spaceHFDiv = document.createElement('div')
+  spaceHFDiv.className = 'space-h-f pl-2'
+
+  const nameP = document.createElement('p')
+  nameP.className = 'text-sm'
+  nameP.style = 'user-select: text;'
+  nameP.textContent = name
+
+  spaceHFDiv.appendChild(nameP)
+
+  spaceHDiv.appendChild(flexDiv)
+  spaceHDiv.appendChild(spaceHFDiv)
+
+  const textP = document.createElement('p')
+  textP.className = 'text-sm-2'
+  textP.style = 'user-select: text;'
+  textP.textContent = text
+
+  li.appendChild(spaceHDiv)
+  li.appendChild(textP)
+
+  chatBox.appendChild(li)
+
+  if (scroll) {
+    chatBox.scrollTop = chatBox.scrollHeight
+  }
+}
+
+function directChat(string) {
+  const chatBox = document.getElementById('chatBox')
+  const li = document.createElement('li')
+  li.innerHTML = string
+  chatBox.appendChild(li)
+}
