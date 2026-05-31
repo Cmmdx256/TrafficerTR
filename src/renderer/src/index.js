@@ -164,7 +164,38 @@ const textKeys = {
   Run: 'Run',
   'Follows a player': 'Follows a player',
   'Forms a line': 'Forms a line',
+  'Walks to a visible player': 'Walks to a visible player',
   'Walks to a location': 'Walks to a location',
+  'Shows current coordinates': 'Shows current coordinates',
+  'Shows a visible player position': 'Shows a visible player position',
+  'Finds the nearest loaded block': 'Finds the nearest loaded block',
+  'Mines nearby loaded blocks': 'Mines nearby loaded blocks',
+  'Walks to a moving player': 'Walks to a moving player',
+  'Gives collected items': 'Gives collected items',
+  'Shows coordinates': 'Shows coordinates',
+  'AI mode': 'AI mode',
+  BETA: 'BETA',
+  'AI goal:': 'AI goal:',
+  Survival: 'Survival',
+  Mining: 'Mining',
+  Wood: 'Wood',
+  Farm: 'Farm',
+  Village: 'Village',
+  Trade: 'Trade',
+  Combat: 'Combat',
+  Loot: 'Loot',
+  Nether: 'Nether',
+  End: 'End',
+  'Controls autonomous mode': 'Controls autonomous mode',
+  'Shows the current survival objective': 'Shows the current survival objective',
+  'Responds from server chat': 'Responds from server chat',
+  'Checks portal materials': 'Checks portal materials',
+  'Moves with body controls': 'Moves with body controls',
+  'Controls body states': 'Controls body states',
+  'Controls camera': 'Controls camera',
+  'Breaks blocks': 'Breaks blocks',
+  'Places blocks': 'Places blocks',
+  'Uses held item': 'Uses held item',
   'Stops pathfinder': 'Stops pathfinder',
   'Show chat': 'Show chat',
   'Auto scroll': 'Auto scroll',
@@ -205,7 +236,14 @@ const textKeys = {
   'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
     'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.',
   'This build is maintained independently and is not connected to the original project social links.':
-    'This build is maintained independently and is not connected to the original project social links.'
+    'This build is maintained independently and is not connected to the original project social links.',
+  'Independent Minecraft bot client': 'Independent Minecraft bot client',
+  Build: 'Build',
+  Focus: 'Focus',
+  Status: 'Status',
+  'TrafficerTR v1.1': 'TrafficerTR v1.1',
+  'AI mode, pathfinding, webhooks': 'AI mode, pathfinding, webhooks',
+  'Actively maintained': 'Actively maintained'
 }
 
 const localizedText = {
@@ -298,7 +336,38 @@ const localizedText = {
     Run: 'Çalıştır',
     'Follows a player': 'Bir oyuncuyu takip eder',
     'Forms a line': 'Sıra oluşturur',
+    'Walks to a visible player': 'Görünen bir oyuncuya yürür',
     'Walks to a location': 'Bir konuma yürür',
+    'Shows current coordinates': 'Mevcut koordinatı gösterir',
+    'Shows a visible player position': 'Görünen oyuncu konumunu gösterir',
+    'Finds the nearest loaded block': 'Yakındaki yüklü bloğu bulur',
+    'Mines nearby loaded blocks': 'Yakındaki yüklü blokları kazar',
+    'Walks to a moving player': 'Hareket eden oyuncuya gider',
+    'Gives collected items': 'Toplanan eşyaları verir',
+    'Shows coordinates': 'Koordinatları gösterir',
+    'AI mode': 'AI modu',
+    BETA: 'BETA',
+    'AI goal:': 'AI hedefi:',
+    Survival: 'Hayatta kalma',
+    Mining: 'Madencilik',
+    Wood: 'Odun',
+    Farm: 'Tarla',
+    Village: 'Köy',
+    Trade: 'Ticaret',
+    Combat: 'Savaş',
+    Loot: 'Loot',
+    Nether: 'Nether',
+    End: 'End',
+    'Controls autonomous mode': 'Otonom modu kontrol eder',
+    'Shows the current survival objective': 'Mevcut survival hedefini gösterir',
+    'Responds from server chat': 'Sunucu sohbetinden yanıt verir',
+    'Checks portal materials': 'Portal malzemelerini kontrol eder',
+    'Moves with body controls': 'Beden kontrolleriyle hareket eder',
+    'Controls body states': 'Beden durumlarını kontrol eder',
+    'Controls camera': 'Kamerayı kontrol eder',
+    'Breaks blocks': 'Blok kırar',
+    'Places blocks': 'Blok koyar',
+    'Uses held item': 'Eldeki eşyayı kullanır',
     'Stops pathfinder': 'Yol bulucuyu durdurur',
     'Show chat': 'Sohbeti göster',
     'Auto scroll': 'Otomatik kaydır',
@@ -339,7 +408,14 @@ const localizedText = {
     'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
       'TrafficerTR yapısını temiz düzeltmeler, yeni Minecraft uyumluluğu ve kendi derleyip çalıştırmak isteyenler için daha akıcı bir deneyim odağıyla geliştiriyorum.',
     'This build is maintained independently and is not connected to the original project social links.':
-      'Bu sürüm bağımsız olarak geliştirilmektedir ve orijinal projenin sosyal bağlantılarıyla ilişkili değildir.'
+      'Bu sürüm bağımsız olarak geliştirilmektedir ve orijinal projenin sosyal bağlantılarıyla ilişkili değildir.',
+    'Independent Minecraft bot client': 'Bağımsız Minecraft bot client',
+    Build: 'Derleme',
+    Focus: 'Odak',
+    Status: 'Durum',
+    'TrafficerTR v1.1': 'TrafficerTR v1.1',
+    'AI mode, pathfinding, webhooks': 'AI modu, yol bulucu, webhook',
+    'Actively maintained': 'Aktif olarak geliştiriliyor'
   }
 }
 
@@ -427,6 +503,7 @@ window.addEventListener('DOMContentLoaded', () => {
   valueElements.forEach((select) => {
     select.addEventListener('change', valueChange)
   })
+  document.getElementById('webhookLink')?.addEventListener('input', valueChange)
 
   const checkboxElements = document.querySelectorAll('input[type="checkbox"]')
   checkboxElements.forEach((check) => {
@@ -714,7 +791,6 @@ function startRegionalClock() {
 
 function updateRegionalClock() {
   const clock = document.getElementById('idUptime')
-  if (!clock) return
 
   const settings = regionalClocks[currentLanguage] || regionalClocks.en
   const now = new Date()
@@ -735,8 +811,10 @@ function updateRegionalClock() {
   const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0)
   const phase = getRegionalDayPhase(hour, minute)
 
-  clock.textContent = `${timeText} ${settings.label}`
-  clock.title = settings.timeZone
+  if (clock) {
+    clock.textContent = `${timeText} ${settings.label}`
+    clock.title = settings.timeZone
+  }
   document.body.dataset.timePhase = phase
   document.body.classList.toggle('time-dawn', phase === 'dawn')
   document.body.classList.toggle('time-day', phase === 'day')

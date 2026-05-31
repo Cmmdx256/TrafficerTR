@@ -179,6 +179,23 @@ code {
   border: solid 1px var(--ev-c-gray-1);
 }
 
+.beta-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 218, 122, 0.42);
+  border-radius: 3px;
+  background: rgba(255, 190, 54, 0.16);
+  color: #ffe8a3;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  box-shadow: 0 0 14px rgba(255, 184, 64, 0.18);
+}
+
 .containerCheckbox:hover input~.checkmark {
   background-color: var(--ev-c-gray-2);
 }
@@ -650,9 +667,63 @@ img {
 }
 
 .about-earth {
-  width: 80px;
-  height: 80px;
-  margin-right: 8px;
+  width: 64px;
+  height: 64px;
+  margin-right: 12px;
+}
+
+.about-panel {
+  width: min(680px, calc(100% - 48px));
+  margin: 38px auto 0;
+  text-align: left;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.about-title {
+  font-size: 46px;
+  line-height: 0.95;
+}
+
+.about-version {
+  margin-top: 6px;
+  color: rgba(255, 236, 196, 0.72);
+}
+
+.about-copy {
+  max-width: 600px;
+  margin: 22px auto 0;
+  padding: 16px 18px;
+  border-top: 1px solid rgba(255, 220, 130, 0.14);
+  border-bottom: 1px solid rgba(255, 220, 130, 0.14);
+  text-align: center;
+}
+
+.about-copy .text-sm-2,
+.about-copy .tip {
+  margin-top: 10px;
+  line-height: 1.45;
+}
+
+.about-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 640px;
+  margin: 18px auto 0;
+}
+
+.about-meta > div {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 214, 116, 0.16);
+  border-radius: 6px;
+  background: rgba(31, 8, 8, 0.32);
 }
 
 .gradient {
@@ -914,45 +985,77 @@ body::after {
 }
 
 body.time-dawn {
-  --scene-opacity: 0.38;
-  --cycle-brightness: 0.96;
-  --cycle-saturation: 0.95;
-  --cycle-warmth: rgba(255, 142, 86, 0.14);
+  --scene-opacity: 0.7;
+  --cycle-brightness: 1.02;
+  --cycle-saturation: 1.18;
+  --cycle-warmth: rgba(255, 142, 86, 0.34);
 }
 
 body.time-day {
-  --scene-opacity: 0.34;
-  --cycle-brightness: 1.04;
-  --cycle-saturation: 1.06;
-  --cycle-warmth: rgba(255, 199, 75, 0.08);
+  --scene-opacity: 0.66;
+  --cycle-brightness: 1.16;
+  --cycle-saturation: 1.24;
+  --cycle-warmth: rgba(255, 199, 75, 0.22);
 }
 
 body.time-evening {
-  --scene-opacity: 0.4;
-  --cycle-brightness: 0.9;
-  --cycle-saturation: 1.12;
-  --cycle-warmth: rgba(228, 90, 45, 0.18);
+  --scene-opacity: 0.76;
+  --cycle-brightness: 0.88;
+  --cycle-saturation: 1.32;
+  --cycle-warmth: rgba(228, 90, 45, 0.42);
 }
 
 body.time-night {
-  --scene-opacity: 0.3;
-  --cycle-brightness: 0.68;
-  --cycle-saturation: 0.82;
-  --cycle-warmth: rgba(44, 58, 95, 0.22);
+  --scene-opacity: 0.78;
+  --cycle-brightness: 0.58;
+  --cycle-saturation: 0.84;
+  --cycle-warmth: rgba(44, 58, 95, 0.54);
+}
+
+body.time-dawn .theme-scene::after {
+  background:
+    radial-gradient(circle at 82% 18%, rgba(255, 210, 116, 0.16), transparent 18%),
+    linear-gradient(180deg, rgba(255, 135, 89, 0.13), transparent 46%),
+    linear-gradient(180deg, transparent, rgba(55, 10, 12, 0.34));
+  opacity: 0.74;
+}
+
+body.time-day .theme-scene::after {
+  background:
+    radial-gradient(circle at 76% 16%, rgba(255, 232, 140, 0.11), transparent 21%),
+    linear-gradient(180deg, transparent 0%, rgba(23, 4, 6, 0.18) 100%);
+  opacity: 0.54;
+}
+
+body.time-evening .theme-scene::before {
+  opacity: 0.3;
+  background:
+    repeating-linear-gradient(8deg, rgba(255, 183, 82, 0.05) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(96deg, rgba(255, 81, 67, 0.035) 0 1px, transparent 1px 20px);
 }
 
 body.time-night .theme-scene::after {
   background:
-    radial-gradient(circle at 72% 18%, rgba(196, 218, 255, 0.14), transparent 14%),
+    radial-gradient(circle at 72% 18%, rgba(196, 218, 255, 0.2), transparent 13%),
     linear-gradient(180deg, rgba(8, 14, 28, 0.35), rgba(12, 3, 8, 0.72));
   opacity: 0.84;
 }
 
+body.time-night .theme-scene::before {
+  opacity: 0.5;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(235, 244, 255, 0.55) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 31% 34%, rgba(235, 244, 255, 0.36) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 58% 12%, rgba(235, 244, 255, 0.48) 0 1.2px, transparent 2px),
+    radial-gradient(circle at 82% 39%, rgba(235, 244, 255, 0.34) 0 1px, transparent 1.8px);
+}
+
 body.time-evening .theme-scene::after {
   background:
-    linear-gradient(180deg, rgba(177, 42, 28, 0.12), transparent 44%),
-    linear-gradient(180deg, transparent, rgba(94, 20, 15, 0.42));
-  opacity: 0.7;
+    radial-gradient(circle at 76% 19%, rgba(255, 171, 76, 0.18), transparent 18%),
+    linear-gradient(180deg, rgba(177, 42, 28, 0.2), transparent 44%),
+    linear-gradient(180deg, transparent, rgba(94, 20, 15, 0.52));
+  opacity: 0.82;
 }
 
 .content {
@@ -982,12 +1085,13 @@ body.theme-winter .downbar {
 
 body.theme-winter .area {
   background:
-    radial-gradient(circle at 84% 10%, rgba(131, 46, 51, 0.18), transparent 24%),
-    linear-gradient(180deg, rgba(50, 8, 12, 0.78), rgba(20, 4, 8, 0.86));
+    radial-gradient(circle at 84% 10%, rgba(194, 232, 255, 0.18), transparent 22%),
+    radial-gradient(circle at 18% 84%, rgba(255, 255, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(28, 38, 58, 0.86), rgba(10, 15, 28, 0.92));
 }
 
 body.theme-winter .sidebar {
-  background: linear-gradient(180deg, rgba(91, 10, 21, 0.86), rgba(31, 6, 9, 0.88));
+  background: linear-gradient(180deg, rgba(42, 63, 86, 0.9), rgba(13, 20, 36, 0.92));
 }
 
 body.theme-summer .topbar {
@@ -1004,12 +1108,13 @@ body.theme-summer .downbar {
 
 body.theme-summer .area {
   background:
-    radial-gradient(circle at 80% 18%, rgba(255, 196, 57, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(73, 13, 8, 0.75), rgba(25, 7, 6, 0.84));
+    radial-gradient(circle at 80% 18%, rgba(255, 220, 83, 0.22), transparent 24%),
+    radial-gradient(circle at 14% 88%, rgba(34, 190, 140, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(101, 38, 10, 0.78), rgba(20, 68, 74, 0.82));
 }
 
 body.theme-summer .sidebar {
-  background: linear-gradient(180deg, rgba(129, 21, 14, 0.86), rgba(56, 13, 7, 0.88));
+  background: linear-gradient(180deg, rgba(177, 78, 16, 0.9), rgba(37, 91, 84, 0.9));
 }
 
 .topbar {
@@ -1253,6 +1358,13 @@ select:focus {
   animation: splashRise 900ms ease 2300ms both;
 }
 
+.splash-github-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  animation: githubLockupExit 2500ms ease both;
+}
+
 .splash-github {
   width: 76px;
   height: 76px;
@@ -1260,7 +1372,21 @@ select:focus {
   filter:
     drop-shadow(0 18px 26px rgba(0, 0, 0, 0.42))
     drop-shadow(0 0 20px rgba(255, 81, 70, 0.3));
-  animation: githubDropExit 2350ms cubic-bezier(0.2, 0.85, 0.24, 1) both;
+  animation: githubBounceSlide 2300ms cubic-bezier(0.2, 0.85, 0.24, 1) both;
+}
+
+.splash-github-word {
+  min-width: 168px;
+  color: #fff8ec;
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 0;
+  opacity: 0;
+  transform: translateX(-18px);
+  text-shadow:
+    0 0 18px rgba(255, 83, 70, 0.34),
+    0 14px 34px rgba(0, 0, 0, 0.36);
+  animation: githubWordReveal 2300ms ease both;
 }
 
 .cmmdx-title {
@@ -1470,37 +1596,37 @@ body.theme-winter .snow {
   display: block;
   position: absolute;
   inset: -32% -4% -8% -4%;
-  opacity: 0.58;
+  opacity: 0.96;
   background-image:
     radial-gradient(circle, rgba(255, 255, 255, 0.92) 0 1px, transparent 1.7px),
     radial-gradient(circle, rgba(235, 244, 255, 0.68) 0 1.2px, transparent 2px),
     radial-gradient(circle, rgba(255, 226, 186, 0.46) 0 0.8px, transparent 1.6px);
   background-position: 0 0, 28px 42px, 54px 18px;
-  background-size: 74px 92px, 116px 138px, 48px 68px;
-  filter: blur(0.12px);
-  animation: snowFall 26s linear infinite, snowSway 7s ease-in-out infinite alternate;
+  background-size: 44px 58px, 76px 98px, 28px 42px;
+  filter: blur(0.05px);
+  animation: snowFall 16s linear infinite, snowSway 5s ease-in-out infinite alternate;
 }
 
 body.theme-winter .snow-two {
-  opacity: 0.32;
-  background-size: 42px 58px, 86px 108px, 140px 160px;
-  animation-duration: 38s, 11s;
+  opacity: 0.68;
+  background-size: 34px 48px, 72px 96px, 120px 148px;
+  animation-duration: 34s, 11s;
   animation-direction: reverse;
 }
 
 body.theme-winter .cloud {
   display: block;
   position: absolute;
-  width: 280px;
-  height: 86px;
+  width: 330px;
+  height: 96px;
   border-radius: 80px;
   background:
-    radial-gradient(circle at 18% 62%, rgba(236, 244, 255, 0.26), transparent 34%),
-    radial-gradient(circle at 45% 34%, rgba(214, 224, 236, 0.24), transparent 41%),
-    radial-gradient(circle at 78% 61%, rgba(236, 244, 255, 0.2), transparent 37%),
-    linear-gradient(180deg, rgba(113, 75, 80, 0.3), rgba(34, 20, 32, 0.2));
-  box-shadow: inset 0 -18px 30px rgba(34, 8, 12, 0.12);
-  filter: blur(1.2px);
+    radial-gradient(circle at 18% 62%, rgba(236, 244, 255, 0.36), transparent 34%),
+    radial-gradient(circle at 45% 34%, rgba(214, 224, 236, 0.34), transparent 41%),
+    radial-gradient(circle at 78% 61%, rgba(236, 244, 255, 0.28), transparent 37%),
+    linear-gradient(180deg, rgba(136, 92, 98, 0.34), rgba(34, 20, 32, 0.26));
+  box-shadow: inset 0 -22px 34px rgba(34, 8, 12, 0.16), 0 24px 58px rgba(0, 0, 0, 0.16);
+  filter: blur(0.8px);
   animation: cloudDrift 31s ease-in-out infinite alternate;
 }
 
@@ -1554,14 +1680,14 @@ body.theme-summer {
 body.theme-summer .sun {
   display: block;
   position: absolute;
-  width: 146px;
-  height: 146px;
-  top: 34px;
-  right: 70px;
+  width: 210px;
+  height: 210px;
+  top: 22px;
+  right: 54px;
   border-radius: 50%;
   background:
     radial-gradient(circle at 42% 37%, rgba(255, 252, 201, 0.88), rgba(255, 190, 67, 0.34) 51%, transparent 72%);
-  box-shadow: 0 0 52px rgba(255, 188, 75, 0.28), 0 0 110px rgba(230, 75, 38, 0.12);
+  box-shadow: 0 0 86px rgba(255, 188, 75, 0.58), 0 0 180px rgba(230, 75, 38, 0.28);
   filter: blur(0.4px);
   animation: sunPulse 7s ease-in-out infinite alternate;
 }
@@ -1589,15 +1715,15 @@ body.theme-summer .sun::after {
 body.theme-summer .cloud {
   display: block;
   position: absolute;
-  width: 284px;
-  height: 86px;
+  width: 320px;
+  height: 92px;
   border-radius: 90px;
   background:
-    radial-gradient(circle at 18% 60%, rgba(255, 249, 225, 0.28), transparent 34%),
-    radial-gradient(circle at 48% 31%, rgba(255, 239, 207, 0.25), transparent 39%),
-    radial-gradient(circle at 78% 59%, rgba(255, 245, 221, 0.2), transparent 36%),
-    linear-gradient(180deg, rgba(255, 203, 121, 0.08), rgba(105, 36, 22, 0.04));
-  filter: blur(0.9px);
+    radial-gradient(circle at 18% 60%, rgba(255, 249, 225, 0.38), transparent 34%),
+    radial-gradient(circle at 48% 31%, rgba(255, 239, 207, 0.34), transparent 39%),
+    radial-gradient(circle at 78% 59%, rgba(255, 245, 221, 0.28), transparent 36%),
+    linear-gradient(180deg, rgba(255, 203, 121, 0.14), rgba(105, 36, 22, 0.05));
+  filter: blur(0.55px);
   animation: cloudDrift 32s ease-in-out infinite alternate;
 }
 
@@ -1642,11 +1768,11 @@ body.theme-summer .sea {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 162px;
+  height: 220px;
   background:
-    linear-gradient(180deg, rgba(255, 201, 92, 0.12), transparent 18%),
-    repeating-linear-gradient(172deg, rgba(255, 228, 132, 0.1) 0 8px, transparent 8px 31px),
-    linear-gradient(180deg, rgba(88, 44, 25, 0.12), rgba(29, 84, 87, 0.38) 34%, rgba(12, 46, 59, 0.56));
+    linear-gradient(180deg, rgba(255, 201, 92, 0.18), transparent 18%),
+    repeating-linear-gradient(172deg, rgba(255, 228, 132, 0.16) 0 8px, transparent 8px 31px),
+    linear-gradient(180deg, rgba(88, 44, 25, 0.18), rgba(25, 137, 143, 0.68) 34%, rgba(9, 62, 89, 0.82));
   border-top: 1px solid rgba(255, 221, 137, 0.16);
   animation: seaMove 12s ease-in-out infinite alternate;
 }
@@ -1764,36 +1890,74 @@ body.time-night.theme-winter .snow {
   }
 }
 
-@keyframes githubDropExit {
+@keyframes githubBounceSlide {
   0% {
     opacity: 0;
-    transform: translate3d(0, -48vh, 0) scale(0.86) rotate(-10deg);
+    transform: translate3d(-18vw, -44vh, 0) scale(0.82) rotate(-16deg);
   }
 
   12% {
     opacity: 1;
   }
 
-  42% {
-    transform: translate3d(0, 16px, 0) scale(1.05) rotate(4deg);
+  34% {
+    transform: translate3d(0, 34px, 0) scale(1.08, 0.9) rotate(7deg);
   }
 
-  54% {
-    transform: translate3d(0, -22px, 0) scale(0.96) rotate(-3deg);
+  46% {
+    transform: translate3d(0, -44px, 0) scale(0.94, 1.08) rotate(-5deg);
   }
 
-  66% {
+  58% {
+    transform: translate3d(0, 12px, 0) scale(1.03, 0.96) rotate(3deg);
+  }
+
+  70% {
     transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
   }
 
-  82% {
+  84% {
     opacity: 1;
-    transform: translate3d(-18px, 0, 0) scale(1) rotate(-8deg);
+    transform: translate3d(-92px, 0, 0) scale(1) rotate(-6deg);
   }
 
   100% {
     opacity: 0;
     transform: translate3d(-58vw, 0, 0) scale(0.96) rotate(-28deg);
+  }
+}
+
+@keyframes githubWordReveal {
+  0%,
+  56% {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  84% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-44vw);
+  }
+}
+
+@keyframes githubLockupExit {
+  0%,
+  84% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
