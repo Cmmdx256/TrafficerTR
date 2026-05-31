@@ -1,3 +1,4 @@
+<img width="1095" height="612" alt="main" src="https://github.com/user-attachments/assets/13d442c1-e0e4-4f5b-96db-7358489969f4" />
 # TrafficerTR
 
 TrafficerTR, Minecraft botlarini tek bir masaustu arayuzunden yonetmek icin gelistirilen Electron tabanli bir istemcidir. Proje, TrafficerTR v1.0 ile yeni arayuz, coklu dil destegi, tema secimi, script calistirma, proxy testleri ve Discord webhook loglari uzerine odaklanir.
@@ -53,23 +54,6 @@ Windows icin paketle:
 
 ```bash
 npm run build:win
-```
-
-
-
-```text
-docs/screenshots/
-```
-
-
-```md
-![TrafficerTR ana ekran](docs/screenshots/main.png)
-```
-
-
-```md
-![Botlar sekmesi](docs/screenshots/botting.png)
-![Ayarlar sekmesi](docs/screenshots/settings.png)
 ```
 
 
