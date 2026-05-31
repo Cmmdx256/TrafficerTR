@@ -55,33 +55,23 @@ Windows icin paketle:
 npm run build:win
 ```
 
-## Ekran Goruntusu Ekleme
 
-README icinde ekran goruntusu gostermek icin gorseli proje icinde tutman yeterli. Hazir klasor:
 
 ```text
 docs/screenshots/
 ```
 
-Ornek kullanim:
-
-1. Uygulamayi ac.
-2. Windows'ta `Win + Shift + S` ile ekran goruntusu al.
-3. Gorseli `docs/screenshots/main.png` olarak kaydet.
-4. README icine su satiri ekle:
 
 ```md
 ![TrafficerTR ana ekran](docs/screenshots/main.png)
 ```
 
-Birden fazla ekran goruntusu icin:
 
 ```md
 ![Botlar sekmesi](docs/screenshots/botting.png)
 ![Ayarlar sekmesi](docs/screenshots/settings.png)
 ```
 
-Dosya adi kucuk harfli ve bosluksuz olursa GitHub'da daha sorunsuz gorunur.
 
 ## Gelistirici
 
