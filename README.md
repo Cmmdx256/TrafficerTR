@@ -3,7 +3,6 @@
 
 TrafficerTR, Minecraft botlarini tek bir masaustu arayuzunden yonetmek icin gelistirilen Electron tabanli bir istemcidir. Proje, TrafficerTR v1.0 ile yeni arayuz, coklu dil destegi, tema secimi, script calistirma, proxy testleri ve Discord webhook loglari uzerine odaklanir.
 
-> Not: Bu araci yalnizca kendi sunucularinda, izinli test ortamlarinda veya gelistirme amacli kullan. Baska sunuculara zarar vermek, spam yapmak veya izinsiz trafik olusturmak icin kullanilmasi uygun degildir.
 
 ## Ozellikler
 
