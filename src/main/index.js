@@ -20,19 +20,20 @@ import {
   isSuspendedMinecraftVersion
 } from './js/misc/utils'
 import { easyMcAuth } from './js/misc/customAuth'
+import { createGeminiMinecraftController } from './js/geminiController'
+import { createMobilityEngine } from './js/mobilityEngine'
 import EventEmitter from 'node:events'
 const Store = require('electron-store')
 const mineflayer = require('mineflayer')
 const { Vec3 } = require('vec3')
 const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 import { antiafk } from './js/misc/antiafk'
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 const botApi = new EventEmitter()
 botApi.setMaxListeners(0)
 const store = new Store()
 const suspendedBotControls = new Set(['interact', 'nuker'])
-const UPDATE_REPO = 'Cmmdx/TrafficerTR'
+const UPDATE_REPO = 'Cmmdx256/TrafficerTR'
 const UPDATE_API_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`
 const UPDATE_RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases/latest`
 
@@ -42,8 +43,51 @@ let stopProxyTest = false
 let currentProxy = 0
 let proxyUsed = 0
 
+function configureElectronStorage() {
+  const appData = app.getPath('appData')
+  const safeUserData = join(appData, 'TrafficerTR')
+  const safeSessionData = join(safeUserData, 'Session')
+  fs.mkdirSync(safeSessionData, { recursive: true })
+  app.setPath('userData', safeUserData)
+  app.setPath('sessionData', safeSessionData)
+  app.commandLine.appendSwitch('disk-cache-dir', join(safeSessionData, 'Cache'))
+  app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+}
+
+configureElectronStorage()
+
 function storeinfo() {
   return store.get('config')
+}
+
+function getConfiguredAiModel() {
+  const configured = storeinfo()?.value?.aiModel
+  if (!configured || !String(configured).startsWith('gemini-')) {
+    return process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+  }
+  return configured
+}
+
+function getConfiguredAiProvider() {
+  return 'gemini'
+}
+
+function getConfiguredGeminiApiKey() {
+  return (
+    String(storeinfo()?.value?.geminiApiKey || '').trim() ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY
+  )
+}
+
+function rememberRecent(map, key, ttlMs) {
+  const now = Date.now()
+  for (const [entryKey, at] of map.entries()) {
+    if (now - at > ttlMs) map.delete(entryKey)
+  }
+  if (map.has(key)) return false
+  map.set(key, now)
+  return true
 }
 
 let clientVersion = app.getVersion().replace(/\.0$/, '')
@@ -54,6 +98,9 @@ let webhookSending = false
 const webhookQueue = []
 const recentGlobalServerChats = []
 const SERVER_CHAT_DEDUPE_MS = 1800
+const recentGeminiChatInputs = new Map()
+const recentGeminiChatReplies = new Map()
+const GEMINI_CHAT_DEDUPE_MS = 3500
 
 const webhookColors = {
   success: 0x3fbf73,
@@ -574,6 +621,13 @@ function createMainWindow() {
     if (store.get('config.namefile')) {
       mainWindow.webContents.send('fileSelected', 'nameFileLabel', store.get('config.namefile'))
     }
+    if (store.get('config.value.customBackground')) {
+      mainWindow.webContents.send(
+        'fileSelected',
+        'customBackgroundLabel',
+        store.get('config.value.customBackground')
+      )
+    }
     mainWindow.show()
     checkForUpdates(mainWindow)
   })
@@ -583,15 +637,22 @@ function createMainWindow() {
   })
 
   ipcMain.on('open', (event, id, name) => {
+    const isBackground = id === 'customBackgroundLabel'
     dialog
       .showOpenDialog(mainWindow, {
         title: name,
-        filters: [{ name: 'Text File', extensions: ['txt'] }],
-        properties: ['openFile', 'multiSelections']
+        filters: isBackground
+          ? [{ name: 'Background image', extensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'] }]
+          : [{ name: 'Text File', extensions: ['txt'] }],
+        properties: isBackground ? ['openFile'] : ['openFile', 'multiSelections']
       })
       .then((result) => {
         if (!result.canceled) {
-          store.set('config.namefile', result.filePaths[0])
+          if (isBackground) {
+            store.set('config.value.customBackground', result.filePaths[0])
+          } else {
+            store.set('config.namefile', result.filePaths[0])
+          }
           mainWindow.webContents.send('fileSelected', id, result.filePaths[0])
         }
       })
@@ -626,6 +687,15 @@ app.whenReady().then(() => {
 
 ipcMain.on('setConfig', (event, type, id, value) => {
   store.set(`config.${type}.${id}`, value)
+  if (type === 'value' && id === 'aiModel') {
+    exeAll(`pathfinder ai model ${value}`)
+  }
+  if (type === 'value' && id === 'geminiApiKey') {
+    const targets = playerList.length > 0 ? playerList : Array.from(connectedBots)
+    for (const player of targets) {
+      botApi.emit('botEvent', player, 'pathfinder', ['ai', 'key', value])
+    }
+  }
 })
 
 ipcMain.on('deleteConfig', () => {
@@ -634,6 +704,9 @@ ipcMain.on('deleteConfig', () => {
 
 ipcMain.on('checkboxClick', (event, id, state) => {
   switch (id) {
+    case 'aiMode':
+      exeAll(`pathfinder ai ${state ? 'on' : 'off'}`)
+      break
     case 'test':
       console.log(state)
       break
@@ -642,7 +715,7 @@ ipcMain.on('checkboxClick', (event, id, state) => {
 })
 
 ipcMain.on('openExternal', (event, url) => {
-  if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/releases/i.test(String(url)))
+  if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\/releases(\/latest)?)?\/?$/i.test(String(url)))
     return
   shell.openExternal(url)
 })
@@ -1379,6 +1452,28 @@ function newBot(options) {
   let aiModeAnnounced = false
   let aiThinkBusy = false
   let aiLastThink = 0
+  let aiSpawnReady = false
+  let aiRuntimeEnabled = false
+  const aiCore = createGeminiMinecraftController({
+    botName: options.username,
+    llmModel: getConfiguredAiModel(),
+    model: getConfiguredAiModel(),
+    apiKey: getConfiguredGeminiApiKey(),
+    store,
+    sendEvent: (message) => sendEvent(bot?._client?.username || options.username, 'chat', message)
+  })
+  const mobility = createMobilityEngine({
+    bot,
+    goals,
+    memory: aiCore.memory,
+    eventBus: aiCore.eventBus,
+    sendEvent: (message) => sendEvent(bot?._client?.username || options.username, 'chat', message),
+    helpers: {
+      placeBlock: (...args) => placeBlockAutonomously(...args),
+      digBlock: (...args) => digBlockAutonomously(...args)
+    }
+  })
+  aiCore.setMobility(mobility)
   const aiMemory = {
     owner: undefined,
     currentTask: 'idle',
@@ -1397,6 +1492,7 @@ function newBot(options) {
     lastInventoryAt: 0,
     lastSmeltAt: 0,
     lastPlanMessage: '',
+    lastDeterministicActionAt: 0,
     failedTargets: new Map(),
     reportedBlocks: new Set()
   }
@@ -1405,6 +1501,7 @@ function newBot(options) {
   bot.once('login', () => {
     connectedBots.add(bot._client.username)
     sendEvent(bot._client.username, 'login')
+    aiCore.emit('bot.login', { username: bot._client.username, server: options.host })
     if (storeinfo().boolean.runOnConnect) {
       stopScript = false
       startScript(bot._client.username)
@@ -1414,12 +1511,26 @@ function newBot(options) {
     }
   })
   bot.once('spawn', () => {
+    aiSpawnReady = true
+    console.log('[MINEFLAYER] spawn event fired', {
+      entity: Boolean(bot.entity),
+      health: bot.health,
+      worldLoaded: Boolean(bot.world)
+    })
     options._reconnectAttempts = 0
     bot.loadPlugin(antiafk)
     setupPathfinder()
+    aiCore.emit('bot.spawn', { position: formatPosition(bot.entity.position) })
   })
   bot.on('spawn', () => {
+    aiSpawnReady = true
+    console.log('[MINEFLAYER] spawn event fired', {
+      entity: Boolean(bot.entity),
+      health: bot.health,
+      worldLoaded: Boolean(bot.world)
+    })
     setupPathfinder()
+    aiCore.emit('bot.respawn_or_spawn', { position: formatPosition(bot.entity.position) })
     if (storeinfo().boolean.runOnSpawn) {
       stopScript = false
       startScript(bot._client.username)
@@ -1427,6 +1538,10 @@ function newBot(options) {
   })
   bot.on('chat', (username, message) => {
     sendServerChat(bot._client.username, username, message, recentServerChats)
+    aiCore.memory.rememberPlayer(username, {
+      interactions: (aiCore.memory.state.players[username]?.interactions || 0) + 1
+    })
+    aiCore.emit('social.chat', { username, message })
     handleAiChat(username, message)
   })
   bot.on('messagestr', (msg, position) => {
@@ -1451,10 +1566,29 @@ function newBot(options) {
       `Window Closed ' ${window.title ? ':' + window.title : ''}`
     )
   })
+  bot.on('death', () => {
+    aiCore.emit('bot.death', {
+      position: bot.entity?.position && formatPosition(bot.entity.position)
+    })
+    aiCore.memory.rememberFailure('death', {
+      position: bot.entity?.position && formatPosition(bot.entity.position)
+    })
+    aiCore.recordMetric('deaths')
+    aiCore.recordMetric('failures')
+    aiCore.reflect('death occurred; review threat, food, armor and escape strategy')
+    aiCore
+      .reflectWithLLM('death', {
+        position: bot.entity?.position && formatPosition(bot.entity.position)
+      })
+      .catch(() => {})
+  })
   bot.once('kicked', (reason) => {
     lastKickReason = formatKickReason(reason)
     const botName = bot._client?.username || options.username
     connectedBots.delete(botName)
+    aiCore.emit('bot.kicked', { reason: lastKickReason })
+    aiCore.reflect('kicked from server', { reason: lastKickReason })
+    aiCore.reflectWithLLM('kicked', { reason: lastKickReason }).catch(() => {})
     sendEvent(botName, 'kicked', appendVersionHint(lastKickReason))
   })
   bot.once('end', (reason) => {
@@ -1464,6 +1598,7 @@ function newBot(options) {
     clearInterval(playerGotoTimer)
 
     const finalReason = appendVersionHint(lastKickReason || stringifyDisconnectReason(reason))
+    aiCore.emit('bot.end', { reason: finalReason })
     sendEvent(botName, 'end', finalReason)
     scheduleReconnect(options, finalReason)
   })
@@ -1471,19 +1606,23 @@ function newBot(options) {
   bot.on('physicTick', () => {
     const isSelected = playerList.includes(bot._client.username)
     const aiMode = toBoolean(storeinfo().boolean.aiMode)
+    if (aiMode && !aiRuntimeEnabled) {
+      setAiMode(true)
+    }
     if (aiMode && !aiModeAnnounced) {
       aiModeAnnounced = true
+      console.log('[GEMINI] Chat Control Mode Activated')
       sendEvent(
         bot._client.username,
         'chat',
-        'AI mode: survival brain online. Chat examples: ai gel, ai diamond bul 3, ai bana tas getir 32, ai durum'
+        'Gemini mode: chat control online. Write commands in chat; Gemini will decide bot actions.'
       )
     } else if (!aiMode) {
+      if (aiModeAnnounced) stopPathfinderTask('AI mode: off')
       aiModeAnnounced = false
     }
     if (aiMode) {
       handleAiBodyDuringMovement()
-      tickAiBrain()
     }
     if (storeinfo().boolean.killauraToggle && isSelected) {
       killaura()
@@ -1505,6 +1644,10 @@ function newBot(options) {
       movements.allow1by1towers = false
       bot.pathfinder.setMovements(movements)
       pathfinderReady = true
+      console.log('[MOBILITY] Pathfinder loaded', {
+        pathfinderExists: Boolean(bot.pathfinder),
+        movementsConfigured: true
+      })
     } catch (error) {
       sendEvent(bot._client.username, 'chat', `Pathfinder setup error: ${error.message}`)
     }
@@ -1802,31 +1945,15 @@ function newBot(options) {
   }
 
   function setAiControl(control, state = true) {
-    const normalized = normalizeMoveControl(control)
-    if (!normalized) return false
-    bot.setControlState(normalized, state)
-    return true
+    return mobility.input(normalizeMoveControl(control) || control, state)
   }
 
   async function pulseAiControl(control, duration = 450, options = {}) {
-    const normalized = normalizeMoveControl(control)
-    if (!normalized) return false
-
-    const durationMs = clampNumber(duration, 80, 5000, 450)
-    if (options.sprint) bot.setControlState('sprint', true)
-    if (options.sneak) bot.setControlState('sneak', true)
-    bot.setControlState(normalized, true)
-    await delay(durationMs)
-    bot.setControlState(normalized, false)
-    if (options.sprint) bot.setControlState('sprint', false)
-    if (options.sneak) bot.setControlState('sneak', false)
-    return true
+    return mobility.pulse(normalizeMoveControl(control) || control, duration, options)
   }
 
   function resetAiBody() {
-    ;['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak'].forEach((control) => {
-      bot.setControlState(control, false)
-    })
+    mobility.reset()
   }
 
   function resolveLookYaw(direction) {
@@ -1894,7 +2021,11 @@ function newBot(options) {
 
     const now = Date.now()
     const moving = Boolean(bot.pathfinder?.isMoving?.())
-    bot.setControlState('sprint', moving && bot.food !== undefined && bot.food > 6)
+    const movementAnalysis = mobility.analyzeEnvironment()
+    bot.setControlState(
+      'sprint',
+      moving && bot.food !== undefined && bot.food > 6 && !movementAnalysis.hazard
+    )
 
     if (now - aiMemory.lastPositionCheckAt < 1000) return
     aiMemory.lastPositionCheckAt = now
@@ -1917,14 +2048,7 @@ function newBot(options) {
 
     if (aiMemory.stuckTicks >= 2 && now - aiMemory.lastBodyActionAt > 1200) {
       aiMemory.lastBodyActionAt = now
-      bot.setControlState('jump', true)
-      setTimeout(() => bot.setControlState('jump', false), 350)
-      if (Math.random() < 0.5) {
-        pulseAiControl(Math.random() < 0.5 ? 'left' : 'right', 300).catch(() => {})
-      }
-      if (aiMemory.stuckTicks >= 4) {
-        placeBlockAutonomously(undefined, ['under']).catch(() => {})
-      }
+      mobility.recoverFromStuck(movementAnalysis).catch(() => {})
     }
   }
 
@@ -2118,13 +2242,13 @@ function newBot(options) {
     }
 
     const block = result.blocks[0]
-    bot.pathfinder.setGoal(
-      new goals.GoalGetToBlock(block.position.x, block.position.y, block.position.z)
-    )
+    mobility.reach(block.position, { near: 1, timeoutMs: 28000 }).catch((error) => {
+      sendEvent(bot._client.username, 'chat', `Mobility find error: ${error.message}`)
+    })
     sendEvent(
       bot._client.username,
       'chat',
-      `Pathfinder: nearest ${block.name} @ ${formatPosition(block.position)}`
+      `Mobility: nearest ${block.name} @ ${formatPosition(block.position)}`
     )
   }
 
@@ -2208,6 +2332,9 @@ function newBot(options) {
 
   async function moveToDiggableBlock(block) {
     const position = block.position.clone()
+    const reached = await mobility.reach(position, { near: 2, timeoutMs: 18000 })
+    if (reached?.ok) return bot.blockAt(position)
+
     const goalsToTry = [
       new goals.GoalNear(position.x, position.y, position.z, 2),
       new goals.GoalGetToBlock(position.x, position.y, position.z)
@@ -2246,8 +2373,36 @@ function newBot(options) {
       }
     }
 
-    await bot.lookAt(target.position.offset(0.5, 0.5, 0.5), true)
-    await bot.dig(target, true)
+    bot.pathfinder?.setGoal?.(null)
+    bot.pathfinder?.stop?.()
+    resetAiBody()
+    await delay(180)
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      target = bot.blockAt(position)
+      if (!target || target.name === 'air') return { mined: false, reason: 'block changed' }
+      if (typeof bot.canDigBlock === 'function' && !bot.canDigBlock(target)) {
+        return { mined: false, reason: 'not reachable before dig' }
+      }
+      try {
+        await bot.lookAt(target.position.offset(0.5, 0.5, 0.5), true)
+        await bot.dig(target, true)
+        break
+      } catch (error) {
+        bot.stopDigging?.()
+        resetAiBody()
+        if (attempt >= 2) return { mined: false, reason: error.message }
+        await delay(350)
+      }
+    }
+    aiCore.emit('block.broken', {
+      block: target.name,
+      position: formatPosition(target.position)
+    })
+    aiCore.rememberDiscovery('resource', target.name, {
+      position: formatPosition(target.position)
+    })
+    aiCore.recordMetric('minedBlocks')
     return { mined: true, block: target }
   }
 
@@ -2358,18 +2513,14 @@ function newBot(options) {
       placement = nearby.placement
     }
 
+    let beforeCount = 0
     try {
-      await bot.pathfinder.goto(
-        new goals.GoalNear(
-          placement.reference.position.x,
-          placement.reference.position.y,
-          placement.reference.position.z,
-          4
-        )
-      )
+      await mobility.reach(placement.reference.position, { near: 4, timeoutMs: 15000 })
+      beforeCount = inventoryCountByNames([item.name])
       await bot.equip(item, 'hand')
       await bot.lookAt(placement.reference.position.offset(0.5, 0.5, 0.5), true)
       await bot.placeBlock(placement.reference, placement.face)
+      aiCore.recordMetric('placedBlocks')
       sendEvent(
         bot._client.username,
         'chat',
@@ -2377,6 +2528,24 @@ function newBot(options) {
       )
       return true
     } catch (error) {
+      if (/blockUpdate.*timeout|did not fire within timeout/i.test(error.message)) {
+        await delay(250)
+        const placedBlock = bot.blockAt(finalPosition)
+        const afterCount = inventoryCountByNames([item.name])
+        if (!isReplaceableBlock(placedBlock) || afterCount < beforeCount) {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            `AI place: ${item.name} @ ${formatPosition(finalPosition)} confirmed after timeout`
+          )
+          aiCore.emit('block.placed_timeout_confirmed', {
+            item: item.name,
+            position: formatPosition(finalPosition)
+          })
+          aiCore.recordMetric('placedBlocks')
+          return true
+        }
+      }
       sendEvent(bot._client.username, 'chat', `AI place error: ${error.message}`)
       return false
     }
@@ -2412,20 +2581,25 @@ function newBot(options) {
   async function mineNearestBlocks(blockName, count = 1, maxDistance = 64, deliveryTarget) {
     if (pathfinderBusy) {
       sendEvent(bot._client.username, 'chat', 'Pathfinder: already running a task')
-      return
+      return { ok: false, reason: 'pathfinder_busy' }
     }
 
     pathfinderBusy = true
     const wantedCount = clampNumber(count, 1, 64, 1)
     let minedCount = 0
     const skippedBlocks = new Set()
+    let lastFailure = 'not_started'
 
     try {
       while (minedCount < wantedCount && skippedBlocks.size < wantedCount * 12 + 16) {
+        if (String(aiMemory.currentTask || '').startsWith('gemini') && !isAiModeActive()) {
+          sendEvent(bot._client.username, 'chat', 'AI mine: stopped because AI mode is off')
+          return { ok: false, reason: 'ai_mode_off', minedCount }
+        }
         const result = findNearestBlocks(blockName, maxDistance, 6, skippedBlocks)
         if (result.error) {
           sendEvent(bot._client.username, 'chat', result.error)
-          return
+          return { ok: false, reason: result.error, minedCount }
         }
         if (result.blocks.length === 0) {
           sendEvent(
@@ -2433,14 +2607,26 @@ function newBot(options) {
             'chat',
             `Pathfinder: no loaded ${normalizeBlockName(blockName)} nearby`
           )
-          return
+          return {
+            ok: false,
+            reason: `no_loaded_${normalizeBlockName(blockName)}_nearby`,
+            minedCount
+          }
         }
 
         let minedThisRound = false
         for (const block of result.blocks) {
           skippedBlocks.add(positionKey(block.position))
           const digResult = await digBlockAutonomously(block)
-          if (!digResult.mined) continue
+          if (!digResult.mined) {
+            lastFailure = digResult.reason || 'dig_failed'
+            console.log('[MINEFLAYER] Mine attempt failed', {
+              block: block.name,
+              position: formatPosition(block.position),
+              reason: lastFailure
+            })
+            continue
+          }
 
           minedCount++
           minedThisRound = true
@@ -2453,7 +2639,14 @@ function newBot(options) {
           break
         }
 
-        if (!minedThisRound) await delay(250)
+        if (!minedThisRound) {
+          console.log('[EXECUTOR] Mining round failed', {
+            target: blockName,
+            skipped: skippedBlocks.size,
+            lastFailure
+          })
+          await delay(250)
+        }
       }
 
       if (deliveryTarget) {
@@ -2466,9 +2659,17 @@ function newBot(options) {
           'chat',
           `Pathfinder: no reachable ${normalizeBlockName(blockName)} found`
         )
+        return { ok: false, reason: lastFailure || 'no_reachable_block', minedCount }
+      }
+      return {
+        ok: true,
+        minedCount,
+        wantedCount,
+        target: normalizeBlockName(blockName)
       }
     } catch (error) {
       sendEvent(bot._client.username, 'chat', `Pathfinder mine error: ${error.message}`)
+      return { ok: false, reason: error.message, minedCount }
     } finally {
       pathfinderBusy = false
     }
@@ -2771,25 +2972,38 @@ function newBot(options) {
     })
   }
 
-  async function craftItemByNames(itemNames, count = 1) {
+  async function craftItemByNames(itemNames, count = 1, options = {}) {
     if (typeof bot.recipesFor !== 'function' || typeof bot.craft !== 'function') {
       sendEvent(
         bot._client.username,
         'chat',
         'AI craft blocked: crafting plugin is not active. Restart the bot with AI mode enabled.'
       )
-      return false
+      return { ok: false, reason: 'crafting_plugin_inactive' }
     }
 
     const beforeItems = new Map(bot.inventory.items().map((item) => [item.name, item.count]))
+    const beforeTargetCount =
+      options.target === 'planks' ? inventoryCountByNames(getPlankItemNames()) : 0
+    if (options.target === 'planks' && inventoryCountByNames(getLogItemNames()) === 0) {
+      sendEvent(bot._client.username, 'chat', 'AI craft blocked: planks need logs first')
+      return { ok: false, reason: 'missing_logs_for_planks' }
+    }
+    let lastFailure = 'no_recipe'
     for (const itemName of itemNames) {
       const item = bot.registry.itemsByName[itemName]
-      if (!item) continue
+      if (!item) {
+        lastFailure = `unknown_item_${itemName}`
+        continue
+      }
 
       let table = getCraftingTableBlock()
       let recipes = bot.recipesFor(item.id, null, 1, table)
 
       if (recipes.length === 0 && !table) {
+        recipes = bot.recipesFor(item.id, null, 1, null)
+      }
+      if (recipes.length === 0 && table) {
         recipes = bot.recipesFor(item.id, null, 1, null)
       }
       if (recipes.length === 0 && !table && itemName !== 'crafting_table') {
@@ -2798,7 +3012,15 @@ function newBot(options) {
           recipes = bot.recipesFor(item.id, null, 1, table)
         }
       }
-      if (recipes.length === 0) continue
+      if (recipes.length === 0) {
+        lastFailure = `no_recipe_${itemName}`
+        console.log('[EXECUTOR] Craft recipe missing', {
+          itemName,
+          hasTable: Boolean(table),
+          inventory: getInventorySnapshot()
+        })
+        continue
+      }
 
       const recipe = recipes[0]
       if (recipe.requiresTable) {
@@ -2811,20 +3033,35 @@ function newBot(options) {
       try {
         await bot.craft(recipe, craftTimes, recipe.requiresTable ? table : null)
       } catch (error) {
+        lastFailure = error.message
         sendEvent(bot._client.username, 'chat', `AI craft blocked: ${itemName} ${error.message}`)
         continue
       }
       const afterCount = inventoryCountByNames([itemName])
       const beforeCount = beforeItems.get(itemName) || 0
+      const gained =
+        options.target === 'planks'
+          ? inventoryCountByNames(getPlankItemNames()) - beforeTargetCount
+          : afterCount - beforeCount
+      if (gained <= 0) {
+        lastFailure = `craft_no_output_${itemName}`
+        continue
+      }
       sendEvent(
         bot._client.username,
         'chat',
-        `AI craft: ${itemName} +${Math.max(afterCount - beforeCount, resultCount)}`
+        `AI craft: ${itemName} +${Math.max(gained, resultCount)}`
       )
-      return true
+      aiCore.emit('item.crafted', {
+        item: itemName,
+        count: Math.max(gained, resultCount)
+      })
+      aiCore.memory.rememberSuccess('craft', { item: itemName })
+      aiCore.recordMetric('craftedItems')
+      return { ok: true, item: itemName, count: Math.max(gained, resultCount) }
     }
 
-    return false
+    return { ok: false, reason: lastFailure }
   }
 
   async function ensureCraftingTable() {
@@ -2882,7 +3119,7 @@ function newBot(options) {
 
     while (furnaces.length < wanted && getStoneProgress() >= 8) {
       const crafted = await craftItemByNames(['furnace'], 1)
-      if (!crafted) break
+      if (!crafted?.ok) break
       await placeBlockAutonomously('furnace', ['front'])
       await delay(350)
       furnaces = getFurnaceBlocks()
@@ -2940,8 +3177,14 @@ function newBot(options) {
       if (!furnace.inputItem()) await furnace.putInput(input.type, null, inputCount)
       if (!furnace.fuelItem()) await furnace.putFuel(fuel.type, null, fuelCount)
       sendEvent(bot._client.username, 'chat', `AI smelt: ${input.name} using ${fuel.name}`)
+      aiCore.emit('item.smelt_started', { input: input.name, fuel: fuel.name, count: inputCount })
       await delay(11000)
-      if (furnace.outputItem()) await furnace.takeOutput()
+      if (furnace.outputItem()) {
+        const output = furnace.outputItem().name
+        await furnace.takeOutput()
+        aiCore.emit('item.smelted', { input: input.name, output })
+        aiCore.memory.rememberSuccess('smelt', { input: input.name, output })
+      }
       return true
     } catch (error) {
       sendEvent(bot._client.username, 'chat', `AI smelt error: ${error.message}`)
@@ -3023,12 +3266,15 @@ function newBot(options) {
     try {
       const distance = bot.entity.position.distanceTo(entity.position)
       if (distance > 3.2) {
-        await bot.pathfinder.goto(
-          new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, 2)
-        )
+        await mobility.reach(entity.position, { near: 2, timeoutMs: 10000 })
       }
-      await bot.lookAt(entity.position.offset(0, entity.height || 1, 0), true)
+      await mobility.combatStrafe(entity)
       bot.attack(entity)
+      aiCore.recordMetric('combatWins')
+      aiCore.emit('combat.attack', {
+        target: entity.name || entity.type,
+        distance: Number(distance.toFixed(2))
+      })
       sendEvent(
         bot._client.username,
         'chat',
@@ -3215,7 +3461,7 @@ function newBot(options) {
   }
 
   function getSelectedAiGoal() {
-    return String(storeinfo()?.value?.aiGoal || 'survival').toLowerCase()
+    return 'gemini'
   }
 
   function getGoalObjective(goal = getSelectedAiGoal()) {
@@ -3319,170 +3565,296 @@ function newBot(options) {
     const y = bot.entity.position.y
 
     sendEvent(bot._client.username, 'chat', `AI survival: exploring for ${reason}`)
-    await bot.pathfinder.goto(new goals.GoalNear(x, y, z, 4)).catch(() => {})
+    await mobility.reach({ x, y, z }, { near: 4, timeoutMs: 25000 }).catch(() => {})
     aiMemory.currentTask = 'idle'
     return true
   }
 
-  async function runSurvivalResourceTask() {
-    if (Date.now() - aiMemory.lastPlanAt < 7000) return false
-    const goal = getSelectedAiGoal()
-    aiMemory.goal = goal
-    const objective = getGoalObjective(goal)
-    if (!objective) return false
+  function findNearestBlockMatching(matching, maxDistance = 32, count = 1) {
+    if (!bot.entity?.position || typeof bot.findBlocks !== 'function') return []
+    return bot
+      .findBlocks({
+        point: bot.entity.position,
+        matching,
+        maxDistance: clampNumber(maxDistance, 4, 128, 32),
+        count: clampNumber(count, 1, 16, 1)
+      })
+      .map((position) => bot.blockAt(position))
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+      )
+  }
 
-    aiMemory.lastPlanAt = Date.now()
-    const message = `${goal}:${objective.type}:${objective.target || objective.item || objective.items?.[0] || objective.reason}`
-    if (aiMemory.lastPlanMessage !== message) {
-      aiMemory.lastPlanMessage = message
-      sendEvent(bot._client.username, 'chat', `AI objective (${goal}): ${objective.reason}`)
-    }
+  function containerBlockNames(type = 'chest') {
+    const normalized = normalizeBlockName(type)
+    if (normalized === 'furnace') return ['furnace', 'blast_furnace', 'smoker']
+    if (normalized === 'barrel') return ['barrel']
+    return ['chest', 'trapped_chest', 'barrel']
+  }
 
-    if (objective.type === 'craft') {
-      aiMemory.currentTask = `crafting ${objective.items[0]}`
-      const crafted = await craftItemByNames(objective.items, objective.count)
-      aiMemory.currentTask = 'idle'
-      if (!crafted) {
-        const wood = getWoodProgress()
-        if (wood.plankEquivalent < 8) {
-          await mineNearestBlocks('wood', 3, 96)
-          return true
-        }
-        sendEvent(bot._client.username, 'chat', `AI craft blocked: ${objective.reason}`)
-        return performHumanLikeIdle()
+  async function openNearestContainerBlock(type = 'chest', range = 32) {
+    const names = new Set(containerBlockNames(type))
+    const block = findNearestBlockMatching((candidate) => names.has(candidate.name), range, 1)[0]
+    if (!block) return { ok: false, reason: `no ${type} container nearby` }
+    await mobility.reach(block.position, { near: 4, timeoutMs: 18000 })
+    const container =
+      block.name.includes('furnace') || block.name === 'smoker' || block.name === 'blast_furnace'
+        ? await bot.openFurnace(block)
+        : await bot.openContainer(block)
+    return { ok: true, block, container }
+  }
+
+  async function inspectNearestContainer(type = 'chest', range = 32) {
+    const opened = await openNearestContainerBlock(type, range).catch((error) => ({
+      ok: false,
+      reason: error.message
+    }))
+    if (!opened.ok) return opened
+    try {
+      const items = opened.container.containerItems?.() || []
+      return {
+        ok: true,
+        type: opened.block.name,
+        position: formatPosition(opened.block.position),
+        items: items.slice(0, 20).map(({ name, count }) => ({ name, count }))
       }
-      return true
+    } finally {
+      opened.container.close?.()
     }
+  }
 
-    if (objective.type === 'mine') {
-      aiMemory.currentTask = `collecting ${objective.target}`
-      await mineNearestBlocks(objective.target, objective.count, objective.range)
-      aiMemory.currentTask = 'idle'
-      return true
+  async function storeItemsInNearestContainer(items, except) {
+    const wanted = Array.isArray(items) ? items.map(normalizeBlockName) : undefined
+    const excluded = new Set((Array.isArray(except) ? except : []).map(normalizeBlockName))
+    const opened = await openNearestContainerBlock('chest', 32).catch((error) => ({
+      ok: false,
+      reason: error.message
+    }))
+    if (!opened.ok) return opened
+    let stored = 0
+    try {
+      const inventoryItems = bot.inventory.items().filter((item) => {
+        if (/pickaxe|axe|shovel|sword|helmet|chestplate|leggings|boots|shield/.test(item.name)) {
+          return false
+        }
+        if (excluded.has(item.name)) return false
+        return !wanted || wanted.some((target) => itemMatchesTarget(item.name, target))
+      })
+      for (const item of inventoryItems) {
+        await opened.container.deposit(item.type, item.metadata ?? null, item.count)
+        stored += item.count
+      }
+      return { ok: stored > 0, stored, container: opened.block.name }
+    } finally {
+      opened.container.close?.()
     }
+  }
 
-    if (objective.type === 'smelt') {
-      aiMemory.currentTask = `smelting ${objective.goal}`
-      const smelted = await smeltAvailableItems(objective.goal)
-      aiMemory.currentTask = 'idle'
-      if (!smelted) return performHumanLikeIdle()
-      return true
+  async function withdrawItemsFromNearestContainer(items, count = 1) {
+    const wanted = Array.isArray(items) ? items.map(normalizeBlockName) : undefined
+    const wantedCount = clampNumber(count, 1, 64, 1)
+    const opened = await openNearestContainerBlock('chest', 32).catch((error) => ({
+      ok: false,
+      reason: error.message
+    }))
+    if (!opened.ok) return opened
+    let withdrawn = 0
+    try {
+      const containerItems = opened.container.containerItems?.() || []
+      for (const item of containerItems) {
+        if (wanted && !wanted.some((target) => itemMatchesTarget(item.name, target))) continue
+        const amount = Math.min(item.count, wantedCount - withdrawn)
+        if (amount <= 0) break
+        await opened.container.withdraw(item.type, item.metadata ?? null, amount)
+        withdrawn += amount
+        if (withdrawn >= wantedCount) break
+      }
+      return { ok: withdrawn > 0, withdrawn, container: opened.block.name }
+    } finally {
+      opened.container.close?.()
     }
+  }
 
-    if (objective.type === 'place') {
-      aiMemory.currentTask = `placing ${objective.item}`
-      const placed = await placeBlockAutonomously(objective.item, objective.placeArgs || ['front'])
-      aiMemory.currentTask = 'idle'
-      if (!placed) return performHumanLikeIdle()
-      return true
+  async function sleepInNearestBed(range = 32) {
+    const bed = findNearestBlockMatching((block) => /_bed$|^bed$/.test(block.name), range, 1)[0]
+    if (!bed) return { ok: false, reason: 'no bed nearby' }
+    await mobility.reach(bed.position, { near: 3, timeoutMs: 18000 })
+    await bot.sleep(bed)
+    return { ok: true, bed: bed.name, position: formatPosition(bed.position) }
+  }
+
+  function buildGeminiObservation(username) {
+    return {
+      bot: bot.username,
+      speaker: username,
+      health: Math.round(bot.health || 0),
+      food: bot.food,
+      position: bot.entity?.position && formatPosition(bot.entity.position),
+      heldItem: bot.heldItem?.name,
+      inventory: bot.inventory
+        .items()
+        .slice(0, 30)
+        .map(({ name, count }) => ({ name, count })),
+      nearbyPlayers: Object.values(bot.players || {})
+        .map((player) => player?.entity)
+        .filter((entity) => entity?.position && entity.username !== bot.username)
+        .slice(0, 8)
+        .map((entity) => ({
+          name: entity.username,
+          distance: Number(bot.entity.position.distanceTo(entity.position).toFixed(1)),
+          position: formatPosition(entity.position)
+        })),
+      nearbyEntities: Object.values(bot.entities || {})
+        .filter((entity) => entity?.position && entity !== bot.entity)
+        .sort((a, b) => bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position))
+        .slice(0, 12)
+        .map((entity) => ({
+          name: entity.username || entity.name || entity.type,
+          type: entity.type,
+          distance: Number(bot.entity.position.distanceTo(entity.position).toFixed(1)),
+          position: formatPosition(entity.position)
+        })),
+      pathfinderMoving: Boolean(bot.pathfinder?.isMoving?.())
     }
+  }
 
-    if (objective.type === 'find') {
-      aiMemory.currentTask = `finding ${objective.target}`
-      goToNearestBlock(objective.target, objective.range)
-      aiMemory.currentTask = 'idle'
-      return true
+  async function executeGeminiAction(action, username) {
+    if (!action || typeof action !== 'object') return { ok: false, reason: 'empty_action' }
+    const tool = String(action.tool || '').toLowerCase()
+    const args = action.args && typeof action.args === 'object' ? action.args : {}
+    aiCore.debug.currentTask = action
+    aiCore.debug.executionState = 'ACTING'
+
+    switch (tool) {
+      case 'say':
+      case 'chat': {
+        const text = String(args.message || args.text || action.reply || '').trim()
+        if (!text) return { ok: false, reason: 'empty_message' }
+        const reply = text.slice(0, 240)
+        const replyKey = `${options.host || ''}:${bot.username}:${reply}`
+        if (rememberRecent(recentGeminiChatReplies, replyKey, GEMINI_CHAT_DEDUPE_MS)) {
+          bot.chat(reply)
+        }
+        return { ok: true }
+      }
+      case 'move_to': {
+        const { x, y, z, near = 2 } = args
+        if (![x, y, z].every((value) => Number.isFinite(Number(value)))) {
+          return { ok: false, reason: 'invalid_coordinates' }
+        }
+        return mobility.reach(
+          { x: Number(x), y: Number(y), z: Number(z) },
+          { near: clampNumber(near, 1, 8, 2), timeoutMs: 30000 }
+        )
+      }
+      case 'follow_player': {
+        const name = args.name || username
+        const entity = findPlayerEntity(name)
+        if (!entity) return { ok: false, reason: `player_not_visible:${name}` }
+        bot.pathfinder.setGoal(new goals.GoalFollow(entity, clampNumber(args.near, 1, 8, 2)), true)
+        return { ok: true }
+      }
+      case 'stop':
+        stopPathfinderTask('Gemini: stopped')
+        return { ok: true }
+      case 'mine_block':
+        return mineNearestBlocks(args.block || args.name || 'stone', args.count || 1, args.range || 64)
+      case 'place_block':
+        return placeBlockAutonomously(args.item, args.where || args.placeArgs || ['front'])
+      case 'craft_item':
+        return craftItemByNames([args.item].filter(Boolean), args.count || 1)
+      case 'equip_item': {
+        const itemName = normalizeBlockName(args.item)
+        const item = bot.inventory.items().find((entry) => itemMatchesTarget(entry.name, itemName))
+        if (!item) return { ok: false, reason: `item_not_found:${itemName}` }
+        await bot.equip(item, args.destination || 'hand')
+        return { ok: true }
+      }
+      case 'eat_food':
+        return eatIfHungry()
+      case 'attack_entity':
+        return huntEntity(args.name || args.entity)
+      case 'look_at':
+        return (await aiLookAtTarget(args.name || args.target)) || (await aiLook(args.direction || args.target))
+      case 'use_item':
+        mobility.rightClick()
+        return { ok: true }
+      case 'give_items':
+        await tossInventoryToPlayer(args.player || username, args.item)
+        return { ok: true }
+      case 'status':
+        sendAiStatus()
+        return { ok: true }
+      case 'inventory':
+        sendEvent(bot._client.username, 'chat', `Gemini inventory: ${getInventorySnapshot()}`)
+        return { ok: true }
+      case 'explore':
+        return exploreForObjective(args.reason || 'Gemini requested exploration')
+      case 'smelt_item':
+        return smeltAvailableItems(args.item || args.goal || 'ore')
+      case 'sleep':
+        return sleepInNearestBed(args.range || 32)
+      default:
+        return { ok: false, reason: `unknown_tool:${tool}` }
     }
+  }
 
-    if (objective.type === 'hunt') {
-      aiMemory.currentTask = `hunting ${objective.target}`
-      const hunted = objective.entity
-        ? await defendAgainstThreat(objective.entity)
-        : await huntEntity(objective.target)
-      aiMemory.currentTask = 'idle'
-      if (!hunted) return exploreForObjective(objective.reason)
-      return true
+  async function askGeminiFromChat(username, message) {
+    const inputKey = `${options.host || ''}:${bot.username}:${username}:${normalizeCommandText(message)}`
+    if (!rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
+      console.log('[GEMINI] Duplicate chat input ignored', { bot: bot.username, username, message })
+      return
     }
-
-    if (objective.type === 'blocked') {
-      sendEvent(bot._client.username, 'chat', `AI objective blocked: ${objective.reason}`)
-      return exploreForObjective(objective.reason)
+    if (aiThinkBusy) {
+      sendEvent(bot._client.username, 'chat', 'Gemini busy: onceki komut bitiyor')
+      return
     }
-
-    return false
+    aiThinkBusy = true
+    try {
+      const decision = await aiCore.decideFromChat({
+        username,
+        message,
+        observation: buildGeminiObservation(username)
+      })
+      if (!decision.ok) {
+        sendEvent(bot._client.username, 'chat', `Gemini error: ${decision.error}`)
+        return
+      }
+      if (decision.reply) {
+        const reply = String(decision.reply).slice(0, 240)
+        const replyKey = `${options.host || ''}:${bot.username}:${reply}`
+        if (rememberRecent(recentGeminiChatReplies, replyKey, GEMINI_CHAT_DEDUPE_MS)) {
+          bot.chat(reply)
+        }
+      }
+      const actions = decision.actions.slice(0, 5)
+      for (const action of actions) {
+        const result = await executeGeminiAction(action, username)
+        aiCore.recordMetric(result?.ok ? 'actions' : 'failures')
+        if (!result?.ok) {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            `Gemini action failed: ${action.tool} ${result?.reason || 'unknown'}`
+          )
+          break
+        }
+      }
+      aiCore.debug.executionState = 'LISTENING'
+    } catch (error) {
+      aiCore.debug.lastError = error.message
+      aiCore.debug.executionState = 'FAILED'
+      sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+    } finally {
+      aiThinkBusy = false
+    }
   }
 
   function getInventorySnapshot() {
     const wood = getWoodProgress()
     return `wood ${wood.logs} logs/${wood.planks} planks, sticks ${getStickCount()}, stone ${getStoneProgress()}, coal ${inventoryCount('coal')}, iron ${getIronProgress()}, gold ${getGoldProgress()}, copper ${getCopperProgress()}, diamond ${getDiamondProgress()}, obsidian ${getObsidianProgress()}`
-  }
-
-  async function performHumanLikeIdle() {
-    if (Date.now() - aiMemory.lastHumanActionAt < crypto.randomInt(3500, 8000)) return false
-    if (bot.pathfinder?.isMoving?.() || pathfinderBusy) return false
-
-    aiMemory.lastHumanActionAt = Date.now()
-    const action = crypto.randomInt(0, 5)
-    try {
-      switch (action) {
-        case 0:
-          await bot.look(
-            (bot.entity.yaw || 0) + (Math.random() - 0.5) * 1.2,
-            (Math.random() - 0.5) * 0.25,
-            true
-          )
-          break
-        case 1:
-          bot.swingArm('right')
-          break
-        case 2:
-          await pulseAiControl(Math.random() < 0.5 ? 'left' : 'right', crypto.randomInt(180, 420))
-          break
-        case 3:
-          await pulseAiControl('jump', crypto.randomInt(120, 260))
-          break
-        default:
-          if (Math.random() < 0.35) {
-            sendEvent(bot._client.username, 'chat', `AI thinking: ${getInventorySnapshot()}`)
-          }
-          break
-      }
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  function stayNearOwner() {
-    const owner = resolvePlayerName(aiMemory.owner)
-    if (!owner) return false
-    const entity = findPlayerEntity(owner)
-    if (!entity?.position) return false
-
-    const distance = bot.entity.position.distanceTo(entity.position)
-    if (distance < 10 || bot.pathfinder?.isMoving?.()) return false
-
-    goToMovingPlayer(owner, 4)
-    return true
-  }
-
-  async function tickAiBrain() {
-    if (aiThinkBusy || Date.now() - aiLastThink < 1200) return
-    aiLastThink = Date.now()
-    aiThinkBusy = true
-
-    try {
-      if (!bot.pathfinder || !pathfinderReady || !bot.entity) return
-      reportValuableBlocks()
-      if (pathfinderBusy) return
-
-      if (await eatIfHungry()) return
-      await manageInventoryAndEquipment()
-
-      const threat = findNearestThreat(bot.health <= 10 ? 12 : 7)
-      if (threat && (bot.health > 6 || bot.entity.position.distanceTo(threat.position) < 4)) {
-        if (await defendAgainstThreat(threat)) return
-      }
-
-      if (bot.pathfinder?.isMoving?.()) return
-      if (await runSurvivalResourceTask()) return
-      stayNearOwner()
-      await performHumanLikeIdle()
-    } catch (error) {
-      sendEvent(bot._client.username, 'chat', `AI survival error: ${error.message}`)
-    } finally {
-      aiThinkBusy = false
-    }
   }
 
   async function tossInventoryToPlayer(playerName, target) {
@@ -3493,12 +3865,7 @@ function newBot(options) {
       return
     }
 
-    bot.pathfinder.setGoal(
-      new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, 2)
-    )
-    await bot.pathfinder.goto(
-      new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, 2)
-    )
+    await mobility.reach(entity.position, { near: 2, timeoutMs: 22000 })
 
     const items = bot.inventory
       .items()
@@ -3557,20 +3924,41 @@ function newBot(options) {
 
   function setAiMode(enabled) {
     store.set('config.boolean.aiMode', enabled)
+    if (aiRuntimeEnabled === enabled) {
+      sendEvent(bot._client.username, 'chat', `AI mode: already ${enabled ? 'on' : 'off'}`)
+      return
+    }
+    aiRuntimeEnabled = enabled
     if (enabled) {
+      aiCore.startAutonomy()
       aiMemory.owner ||= resolvePlayerName()
       aiMemory.currentTask = 'idle'
+      aiMemory.lastPlanAt = 0
+      aiThinkBusy = false
     } else {
+      aiCore.stopAutonomy('manual_toggle_off')
       aiMemory.currentTask = 'off'
+      aiThinkBusy = false
+      clearInterval(playerGotoTimer)
+      playerGotoTimer = undefined
+      pathfinderBusy = false
+      bot.pathfinder?.setGoal?.(null)
+      bot.pathfinder?.stop?.()
+      bot.stopDigging?.()
+      resetAiBody()
     }
     sendEvent(bot._client.username, 'chat', `AI mode: ${enabled ? 'on' : 'off'}`)
+  }
+
+  function isAiModeActive() {
+    return toBoolean(storeinfo().boolean.aiMode)
   }
 
   function sendAiHelp() {
     sendEvent(
       bot._client.username,
       'chat',
-      'AI help: ai gel, ai dur, ai durum, ai plan, ai ileri 800, ai zıpla, ai koş, ai eğil, ai bak north, ai kır stone, ai koy cobblestone front, ai diamond bul 3, ai bana tas getir 32, ai ver, ai portal'
+      'AI help: ai gel, ai dur, ai durum, ai mobility, ai gemini, ai model gemini-2.5-flash, ai ileri 800, ai zıpla, ai koş, ai eğil, ai bak north, ai kır stone, ai koy cobblestone front, ai diamond bul 3, ai bana tas getir 32, ai ver, ai portal'
     )
   }
 
@@ -3581,24 +3969,67 @@ function newBot(options) {
       : bot.pathfinder?.isMoving?.()
         ? 'moving'
         : aiMemory.currentTask
-    const goal = getSelectedAiGoal()
-    const objective = getGoalObjective(goal)
     sendEvent(
       bot._client.username,
       'chat',
-      `AI status: ${mode}, goal ${goal}, ${task}, objective ${objective?.reason || '-'}, owner ${aiMemory.owner || '-'}, hp ${Math.round(bot.health || 0)}, food ${bot.food ?? '-'}, position ${formatPosition(bot.entity.position)}`
+      `AI status: ${mode}, Gemini-controlled, ${task}, owner ${aiMemory.owner || '-'}, hp ${Math.round(bot.health || 0)}, food ${bot.food ?? '-'}, position ${formatPosition(bot.entity.position)}`
     )
     sendEvent(bot._client.username, 'chat', `AI inventory: ${getInventorySnapshot()}`)
+    const coreStatus = aiCore.status()
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `AI core: events ${coreStatus.memory.events}, players ${coreStatus.memory.players}, resources ${coreStatus.memory.resources}, failures ${coreStatus.memory.failures}`
+    )
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `AI llm: ${coreStatus.llm.provider}/${coreStatus.llm.model}, available ${coreStatus.llm.available === false ? 'no' : 'unknown'}, sqlite ${coreStatus.sqlite.ready ? 'on' : 'fallback'}`
+    )
+    if (coreStatus.llm.performance?.queue) {
+      const queue = coreStatus.llm.performance.queue
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `AI queue: interval ${queue.minIntervalMs}ms, inflight ${queue.inflight}, recent ${queue.recent}`
+      )
+    }
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `AI metrics: deaths ${coreStatus.metrics.deaths}, mined ${coreStatus.metrics.minedBlocks}, crafted ${coreStatus.metrics.craftedItems}, placed ${coreStatus.metrics.placedBlocks}, combat ${coreStatus.metrics.rates.combatEffectiveness}`
+    )
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `AI world: resources ${coreStatus.worldModel.resources}, hazards ${coreStatus.worldModel.hazards}, routes ${coreStatus.worldModel.routes}, players ${coreStatus.worldModel.players}`
+    )
+    if (coreStatus.debug) {
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `AI debug: goal ${coreStatus.debug.currentGoal || '-'}, task ${coreStatus.debug.currentTask?.tool || coreStatus.debug.currentTask || '-'}, agent ${coreStatus.debug.currentAgent || '-'}, state ${coreStatus.debug.executionState}, queue ${coreStatus.debug.taskQueue?.length || 0}, error ${coreStatus.debug.lastError || '-'}`
+      )
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `Gemini last: ${JSON.stringify(coreStatus.debug.lastGeminiResponse || {}).slice(0, 220)}`
+      )
+    }
+    if (coreStatus.mobility) {
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `AI mobility: ${coreStatus.mobility.solutions.join('/')}, stuck ${coreStatus.mobility.stuckTicks}, front ${coreStatus.mobility.analysis.front}, hazard ${coreStatus.mobility.analysis.hazard || '-'}`
+      )
+    }
   }
 
   function sendAiPlan() {
     const goal = getSelectedAiGoal()
-    const objective = getGoalObjective(goal)
-    sendEvent(
-      bot._client.username,
-      'chat',
-      `AI plan: ${goal} -> ${objective?.reason || 'free survival support'}`
-    )
+    sendLocalLlmPlan(goal).catch((error) => {
+      sendEvent(bot._client.username, 'chat', `Gemini plan error: ${error.message}`)
+    })
   }
 
   function sendPortalPlan() {
@@ -3611,11 +4042,40 @@ function newBot(options) {
     )
   }
 
+  async function sendLocalLlmPlan(goal = getSelectedAiGoal()) {
+    sendEvent(bot._client.username, 'chat', `Gemini: asking for plan ${goal}`)
+    const response = await aiCore.generateLocalPlan(goal)
+    if (!response.ok) {
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `Gemini unavailable: ${response.error || 'no response'}`
+      )
+      return
+    }
+    if (!response.validation?.ok) {
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `Gemini plan rejected: ${response.validation?.reason || 'invalid tool plan'}`
+      )
+      return
+    }
+    const steps = response.json.steps
+      .map((step) => `${step.tool}${step.reason ? `:${step.reason}` : ''}`)
+      .join(' > ')
+    sendEvent(bot._client.username, 'chat', `Gemini plan (${response.model}): ${steps}`)
+  }
+
   function handleAiChat(username, message) {
     if (!storeinfo().boolean.aiMode || username === bot.username) return
     aiMemory.owner = username
     const text = normalizeCommandText(message)
     const botName = String(bot.username || '').toLowerCase()
+    const mentionedBotNames = Array.from(connectedBots)
+      .map((name) => String(name || '').toLowerCase())
+      .filter((name) => name && text.includes(name))
+    if (mentionedBotNames.length > 0 && !mentionedBotNames.includes(botName)) return
     const addressed =
       text.startsWith('ai ') ||
       text.startsWith('bot ') ||
@@ -3623,7 +4083,10 @@ function newBot(options) {
       ['gel', 'come', 'dur', 'stop', 'yardim', 'help', 'durum', 'status', 'plan', 'hedef'].includes(
         text
       )
-    if (!addressed) return
+    if (!addressed) {
+      askGeminiFromChat(username, message)
+      return
+    }
 
     const cleaned = text
       .replace(botName ? new RegExp(`\\b${escapeRegExp(botName)}\\b`, 'g') : /$^/, '')
@@ -3640,8 +4103,66 @@ function newBot(options) {
       sendAiStatus()
       return
     }
+    if (['hafiza', 'memory', 'core'].includes(words[0])) {
+      const status = aiCore.status()
+      sendEvent(bot._client.username, 'chat', `AI memory: ${JSON.stringify(status.memory)}`)
+      return
+    }
+    if (['mobility', 'hareket'].includes(words[0])) {
+      sendEvent(bot._client.username, 'chat', `AI mobility: ${JSON.stringify(mobility.status())}`)
+      return
+    }
+    if (['llm', 'gemini'].includes(words[0])) {
+      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+        sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+      })
+      return
+    }
+    if (['key', 'apikey', 'api-key'].includes(words[0])) {
+      const apiKey = words.slice(1).join(' ').trim()
+      if (!apiKey) {
+        sendEvent(bot._client.username, 'chat', 'Gemini API key: missing')
+        return
+      }
+      aiCore.setApiKey(apiKey)
+      store.set('config.value.geminiApiKey', apiKey)
+      sendEvent(bot._client.username, 'chat', 'Gemini API key: saved')
+      return
+    }
+    if (['model', 'provider'].includes(words[0])) {
+      const model = words[0] === 'provider' ? words[2] || words[1] || getConfiguredAiModel() : words[1] || getConfiguredAiModel()
+      aiCore.setModel(model)
+      store.set('config.value.aiProvider', 'gemini')
+      store.set('config.value.aiModel', model)
+      sendEvent(bot._client.username, 'chat', `Gemini model: ${aiCore.llm.model}`)
+      return
+    }
+    askGeminiFromChat(username, cleaned || message)
+    return
+    if (['auto', 'otonom', 'brain', 'beyin'].includes(words[0])) {
+      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.')
+      return
+    }
+    if (['research', 'arastir', 'araştır'].includes(words[0])) {
+      aiCore[words.length > 1 ? 'research' : 'autoResearch'](
+        words.slice(1).join(' ') || 'nearby area may contain useful resources'
+      )
+        .then((response) => {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            response.ok
+              ? `AI research: ${response.json?.test || response.text.slice(0, 120)}`
+              : `AI research unavailable: ${response.error}`
+          )
+        })
+        .catch((error) =>
+          sendEvent(bot._client.username, 'chat', `AI research error: ${error.message}`)
+        )
+      return
+    }
     if (['plan', 'hedef', 'goal'].includes(words[0])) {
-      sendAiPlan()
+      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele, hedef seç ve uygun aksiyonu uygula.')
       return
     }
     if (['portal', 'nether'].includes(words[0])) {
@@ -3712,7 +4233,7 @@ function newBot(options) {
       return
     }
     if (['kullan', 'use'].includes(words[0])) {
-      bot.activateItem()
+      mobility.rightClick()
       sendEvent(bot._client.username, 'chat', 'AI use: held item')
       return
     }
@@ -3761,6 +4282,27 @@ function newBot(options) {
 
     switch (command) {
       case 'ai':
+        if (['key', 'apikey', 'api-key'].includes(String(args[1] || '').toLowerCase())) {
+          const apiKey = args.slice(2).join(' ').trim()
+          if (!apiKey) {
+            sendEvent(bot._client.username, 'chat', 'Gemini API key: missing')
+            return
+          }
+          aiCore.setApiKey(apiKey)
+          store.set('config.value.geminiApiKey', apiKey)
+          sendEvent(bot._client.username, 'chat', 'Gemini API key: saved')
+          return
+        }
+        if (['model', 'provider'].includes(String(args[1] || '').toLowerCase())) {
+          const subcommand = String(args[1] || '').toLowerCase()
+          const model =
+            subcommand === 'provider' ? args[3] || args[2] || getConfiguredAiModel() : args[2] || getConfiguredAiModel()
+          aiCore.setModel(model)
+          store.set('config.value.aiProvider', 'gemini')
+          store.set('config.value.aiModel', model)
+          sendEvent(bot._client.username, 'chat', `Gemini model: ${aiCore.llm.model}`)
+          return
+        }
         if (['on', 'open', 'ac', 'aç'].includes(String(args[1] || '').toLowerCase())) {
           setAiMode(true)
           sendAiHelp()
@@ -3778,14 +4320,37 @@ function newBot(options) {
           return
         }
         if (['plan', 'hedef', 'goal'].includes(String(args[1] || '').toLowerCase())) {
-          if (args[2]) {
-            store.set('config.value.aiGoal', String(args[2]).toLowerCase())
-          }
-          sendAiPlan()
+          askGeminiFromChat(
+            resolvePlayerName(),
+            args.slice(2).join(' ') || 'Durumu incele, hedef seç ve uygun aksiyonu uygula.'
+          )
           return
         }
         if (['portal', 'nether'].includes(String(args[1] || '').toLowerCase())) {
           sendPortalPlan()
+          return
+        }
+        if (['memory', 'hafiza', 'core'].includes(String(args[1] || '').toLowerCase())) {
+          const status = aiCore.status()
+          sendEvent(bot._client.username, 'chat', `AI memory: ${JSON.stringify(status.memory)}`)
+          return
+        }
+        if (['mobility', 'hareket'].includes(String(args[1] || '').toLowerCase())) {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            `AI mobility: ${JSON.stringify(mobility.status())}`
+          )
+          return
+        }
+        if (['llm', 'gemini'].includes(String(args[1] || '').toLowerCase())) {
+          askGeminiFromChat(resolvePlayerName(), args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+            sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+          })
+          return
+        }
+        if (['brain', 'beyin', 'auto', 'otonom'].includes(String(args[1] || '').toLowerCase())) {
+          askGeminiFromChat(resolvePlayerName(), args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.')
           return
         }
         sendAiStatus()
@@ -3865,8 +4430,37 @@ function newBot(options) {
         break
       case 'use':
       case 'kullan':
-        bot.activateItem()
+        mobility.rightClick()
         sendEvent(bot._client.username, 'chat', 'AI use: held item')
+        break
+      case 'mobility':
+      case 'hareket':
+        sendEvent(bot._client.username, 'chat', `AI mobility: ${JSON.stringify(mobility.status())}`)
+        break
+      case 'llm':
+      case 'gemini':
+        askGeminiFromChat(resolvePlayerName(), args.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+          sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+        })
+        break
+      case 'research':
+      case 'arastir':
+      case 'araştır':
+        aiCore[args.length > 1 ? 'research' : 'autoResearch'](
+          args.slice(1).join(' ') || 'nearby area may contain useful resources'
+        )
+          .then((response) => {
+            sendEvent(
+              bot._client.username,
+              'chat',
+              response.ok
+                ? `AI research: ${response.json?.test || response.text.slice(0, 120)}`
+                : `AI research unavailable: ${response.error}`
+            )
+          })
+          .catch((error) =>
+            sendEvent(bot._client.username, 'chat', `AI research error: ${error.message}`)
+          )
         break
       case 'goto':
       case 'go':
@@ -3888,8 +4482,21 @@ function newBot(options) {
           sendEvent(bot._client.username, 'chat', 'Pathfinder goto needs: goto x y z or goto x z')
           return
         }
-        bot.pathfinder.setGoal(new goals.GoalNear(position.x, position.y, position.z, 1))
-        sendEvent(bot._client.username, 'chat', `Pathfinder: goto ${formatPosition(position)}`)
+        mobility
+          .reach(position, { near: 1, timeoutMs: 30000 })
+          .then((reached) => {
+            sendEvent(
+              bot._client.username,
+              'chat',
+              reached
+                ? `Mobility: reached ${formatPosition(position)}`
+                : `Mobility: could not finish ${formatPosition(position)}`
+            )
+          })
+          .catch((error) => {
+            sendEvent(bot._client.username, 'chat', `Mobility goto error: ${error.message}`)
+          })
+        sendEvent(bot._client.username, 'chat', `Mobility: goto ${formatPosition(position)}`)
         break
       }
       case 'follow':

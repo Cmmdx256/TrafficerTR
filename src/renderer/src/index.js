@@ -7,9 +7,14 @@ const translations = {
     'nav.proxy': 'Proxy',
     'nav.webhook': 'Webhook',
     'nav.about': 'About',
+    'nav.settings': 'Settings',
     'settings.app': 'App settings',
     'settings.language': 'Language',
     'settings.theme': 'Theme',
+    'settings.background': 'Background GIF',
+    'settings.backgroundChoose': 'Choose file',
+    'settings.backgroundSize': 'Recommended: 1920x1080, minimum 1100x620',
+    'badge.maintenance': 'UNDERMAINTENANCE',
     'settings.bot': 'Bot settings',
     'theme.winter': 'Winter',
     'theme.summer': 'Summer',
@@ -23,6 +28,7 @@ const translations = {
     'placeholder.number': 'number',
     'placeholder.coords': 'eg: 0 1 0',
     'placeholder.command': 'command',
+    'placeholder.geminiApiKey': 'Gemini API key',
     'placeholder.proxy': 'Proxy:Port:Username:Password',
     'notify.reset': 'Config has been reset. Please restart the app',
     'notify.clearProxy': 'Cleared duplicate proxies',
@@ -44,9 +50,14 @@ const translations = {
     'nav.proxy': 'Proxy',
     'nav.webhook': 'Webhook',
     'nav.about': 'Hakkında',
+    'nav.settings': 'Settings',
     'settings.app': 'Uygulama ayarları',
     'settings.language': 'Dil',
     'settings.theme': 'Tema',
+    'settings.background': 'Arka plan GIF',
+    'settings.backgroundChoose': 'Dosya seç',
+    'settings.backgroundSize': 'Önerilen: 1920x1080, minimum 1100x620',
+    'badge.maintenance': 'BAKIMDA',
     'settings.bot': 'Bot ayarları',
     'theme.winter': 'Kış',
     'theme.summer': 'Yaz',
@@ -60,6 +71,7 @@ const translations = {
     'placeholder.number': 'sayı',
     'placeholder.coords': 'örn: 0 1 0',
     'placeholder.command': 'komut',
+    'placeholder.geminiApiKey': 'Gemini API anahtari',
     'placeholder.proxy': 'Proxy:Port:Kullanıcı:Şifre',
     'notify.reset': 'Config sıfırlandı. Lütfen uygulamayı yeniden başlat.',
     'notify.clearProxy': 'Tekrarlanan proxyler temizlendi',
@@ -94,9 +106,6 @@ const textKeys = {
   Cracked: 'Cracked',
   'Version:': 'Version:',
   Auto: 'Auto',
-  '26.1.2 (Paused)': '26.1.2 (Paused)',
-  '26.1.1 (Paused)': '26.1.1 (Paused)',
-  '26.1 (Paused)': '26.1 (Paused)',
   'Mode:': 'Mode:',
   Normal: 'Normal',
   Minimal: 'Minimal',
@@ -175,7 +184,9 @@ const textKeys = {
   'Shows coordinates': 'Shows coordinates',
   'AI mode': 'AI mode',
   BETA: 'BETA',
-  'AI goal:': 'AI goal:',
+  'Gemini API key:': 'Gemini API key:',
+  'Gemini model:': 'Gemini model:',
+  'Changes Gemini model': 'Changes Gemini model',
   Survival: 'Survival',
   Mining: 'Mining',
   Wood: 'Wood',
@@ -241,8 +252,8 @@ const textKeys = {
   Build: 'Build',
   Focus: 'Focus',
   Status: 'Status',
-  'TrafficerTR v1.1': 'TrafficerTR v1.1',
-  'AI mode, pathfinding, webhooks': 'AI mode, pathfinding, webhooks',
+  'TrafficerTR v1.2': 'TrafficerTR v1.2',
+  'Gemini AI, pathfinder, webhooks': 'Gemini AI, pathfinder, webhooks',
   'Actively maintained': 'Actively maintained'
 }
 
@@ -266,9 +277,6 @@ const localizedText = {
     Cracked: 'Cracked',
     'Version:': 'Sürüm:',
     Auto: 'Otomatik',
-    '26.1.2 (Paused)': '26.1.2 (Askıda)',
-    '26.1.1 (Paused)': '26.1.1 (Askıda)',
-    '26.1 (Paused)': '26.1 (Askıda)',
     'Mode:': 'Mod:',
     Normal: 'Normal',
     Minimal: 'Minimal',
@@ -347,7 +355,9 @@ const localizedText = {
     'Shows coordinates': 'Koordinatları gösterir',
     'AI mode': 'AI modu',
     BETA: 'BETA',
-    'AI goal:': 'AI hedefi:',
+    'Gemini API key:': 'Gemini API anahtari:',
+    'Gemini model:': 'Gemini modeli:',
+    'Changes Gemini model': 'Gemini modelini değiştirir',
     Survival: 'Hayatta kalma',
     Mining: 'Madencilik',
     Wood: 'Odun',
@@ -413,8 +423,8 @@ const localizedText = {
     Build: 'Derleme',
     Focus: 'Odak',
     Status: 'Durum',
-    'TrafficerTR v1.1': 'TrafficerTR v1.1',
-    'AI mode, pathfinding, webhooks': 'AI modu, yol bulucu, webhook',
+    'TrafficerTR v1.2': 'TrafficerTR v1.2',
+    'Gemini AI, pathfinder, webhooks': 'Gemini AI, yol bulucu, webhook',
     'Actively maintained': 'Aktif olarak geliştiriliyor'
   }
 }
@@ -428,6 +438,7 @@ const placeholderKeys = {
   invSlot: 'placeholder.number',
   interactCoords: 'placeholder.coords',
   pathFinderCommand: 'placeholder.command',
+  geminiApiKey: 'placeholder.geminiApiKey',
   proxyList: 'placeholder.proxy'
 }
 
@@ -464,7 +475,7 @@ const regionalClocks = {
   en: {
     locale: 'en-US',
     timeZone: 'America/New_York',
-    label: 'US'
+    label: 'EN'
   },
   tr: {
     locale: 'tr-TR',
@@ -489,8 +500,15 @@ window.addEventListener('DOMContentLoaded', () => {
   })
 
   window.electron?.ipcRenderer.on('fileSelected', (event, id, path) => {
-    const filename = path.match(/[^\\]+$/)[0]
-    document.getElementById(id).innerHTML = filename
+    const filename = path.match(/[^\\/]+$/)?.[0] || path
+    const element = document.getElementById(id)
+    if (element) {
+      element.innerHTML = filename
+      element.title = path
+    }
+    if (id === 'customBackgroundLabel') {
+      applyCustomBackground(path)
+    }
   })
 
   window.electron?.ipcRenderer.on('showBottab', () => {
@@ -498,7 +516,7 @@ window.addEventListener('DOMContentLoaded', () => {
   })
 
   const valueElements = document.querySelectorAll(
-    'input[type="text"], input[type="number"], input[type="range"], select, textarea'
+    'input[type="text"], input[type="password"], input[type="number"], input[type="range"], select, textarea'
   )
   valueElements.forEach((select) => {
     select.addEventListener('change', valueChange)
@@ -513,6 +531,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const buttonElements = document.querySelectorAll('button, .button')
   buttonElements.forEach((button) => {
     button.addEventListener('click', buttonClick)
+  })
+
+  document.querySelectorAll('a[href^="https://github.com/"]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault()
+      window.electron?.ipcRenderer.send('openExternal', link.href)
+    })
   })
 
   const tabElements = document.querySelectorAll('.tab, .tab-2')
@@ -673,6 +698,9 @@ function buttonClick(event) {
     case 'nameFileLabel':
       window.electron?.ipcRenderer.send('open', 'nameFileLabel', 'Name File')
       break
+    case 'customBackgroundLabel':
+      window.electron?.ipcRenderer.send('open', 'customBackgroundLabel', 'Custom Background GIF')
+      break
     case 'selectAll':
       selectAll()
       break
@@ -747,6 +775,30 @@ function setConfigValues(obj) {
     }
   }
   checkUsername()
+  applyCustomBackground(obj.value?.customBackground)
+}
+
+function pathToFileUrl(path) {
+  if (!path) return ''
+  const normalized = String(path).replace(/\\/g, '/')
+  const prefixed = normalized.startsWith('/') ? normalized : `/${normalized}`
+  return `file://${encodeURI(prefixed)}`
+}
+
+function applyCustomBackground(path) {
+  if (!path) {
+    document.body.classList.remove('custom-background')
+    document.body.style.removeProperty('--custom-background-image')
+    document.body.style.removeProperty('background-image')
+    return
+  }
+
+  document.body.classList.add('custom-background')
+  document.body.style.setProperty('--custom-background-image', `url("${pathToFileUrl(path)}")`)
+  document.body.style.backgroundImage = `var(--custom-background-image)`
+  document.body.style.backgroundSize = 'cover'
+  document.body.style.backgroundPosition = 'center'
+  document.body.style.backgroundRepeat = 'no-repeat'
 }
 
 function restoreUISettings() {

@@ -6,6 +6,8 @@ body {
   background-image: url('../icons/background.svg');
   background-size: cover;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 code {
@@ -196,6 +198,27 @@ code {
   box-shadow: 0 0 14px rgba(255, 184, 64, 0.18);
 }
 
+.maintenance-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 104px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0 6px;
+  border: 1px solid rgba(68, 174, 255, 0.5);
+  border-radius: 3px;
+  background: rgba(37, 119, 255, 0.18);
+  color: #86d8ff;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: middle;
+  box-shadow: 0 0 14px rgba(44, 155, 255, 0.22);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .containerCheckbox:hover input~.checkmark {
   background-color: var(--ev-c-gray-2);
 }
@@ -326,6 +349,10 @@ input[type=number] {
 }
 
 input[type=text] {
+  border-bottom: solid 1px var(--ev-c-gray-1);
+}
+
+input[type=password] {
   border-bottom: solid 1px var(--ev-c-gray-1);
 }
 
@@ -653,7 +680,7 @@ img {
   height: 22px;
   object-fit: contain;
   transform-origin: center;
-  animation: earthSelfOrbit 5.5s linear infinite, earthFloat 2.8s ease-in-out infinite alternate;
+  animation: earthOrbitPath 5.5s linear infinite, earthFloat 2.8s ease-in-out infinite alternate;
   filter: drop-shadow(0 0 8px rgba(120, 230, 255, 0.34));
 }
 
@@ -885,13 +912,25 @@ img {
   }
 }
 
-@keyframes earthSelfOrbit {
-  from {
-    transform: rotate(0deg);
+@keyframes earthOrbitPath {
+  0% {
+    transform: translate3d(0, -1px, 0);
   }
 
-  to {
-    transform: rotate(360deg);
+  25% {
+    transform: translate3d(1.5px, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 1px, 0);
+  }
+
+  75% {
+    transform: translate3d(-1.5px, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(0, -1px, 0);
   }
 }
 
@@ -925,10 +964,22 @@ body {
   --cycle-brightness: 1;
   --cycle-saturation: 1;
   --cycle-warmth: rgba(255, 187, 72, 0.1);
+  --custom-background-image: none;
   background:
     radial-gradient(circle at 18% 16%, rgba(245, 73, 57, 0.14), transparent 28%),
     linear-gradient(145deg, #160404 0%, #260707 48%, #130303 100%);
   transition: background 900ms ease, filter 900ms ease;
+}
+
+body.custom-background {
+  background-image: var(--custom-background-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+body.custom-background .theme-scene {
+  opacity: 0.16;
 }
 
 body::after {
@@ -1067,8 +1118,7 @@ body.time-evening .theme-scene::after {
   border: 1px solid rgba(255, 226, 150, 0.14);
   border-radius: 10px;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-  background: rgba(30, 5, 5, 0.28);
-  backdrop-filter: blur(18px);
+  background: rgba(30, 5, 5, 0.1);
 }
 
 body.theme-winter .topbar {
@@ -1122,6 +1172,7 @@ body.theme-summer .sidebar {
     linear-gradient(90deg, rgba(128, 9, 15, 0.95), rgba(83, 5, 11, 0.92)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
   border-bottom: 1px solid rgba(255, 206, 95, 0.14);
+  backdrop-filter: blur(10px);
   transition: background 240ms ease, border-color 240ms ease;
 }
 
@@ -1140,6 +1191,15 @@ body.theme-summer .sidebar {
 .sidebar {
   background: linear-gradient(180deg, rgba(105, 9, 14, 0.88), rgba(42, 6, 5, 0.9));
   border-right: 1px solid rgba(255, 210, 91, 0.14);
+  display: flex;
+  flex-direction: column;
+  padding-top: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.sidebar-settings {
+  margin-top: auto;
+  margin-bottom: 12px;
 }
 
 .sidebar li,
@@ -1207,8 +1267,10 @@ button:active,
 select,
 input[type=text],
 input[type=number],
+input[type=password],
 .textbox {
   border-color: rgba(255, 214, 116, 0.18);
+  backdrop-filter: blur(8px);
 }
 
 .textbox,
@@ -1278,7 +1340,6 @@ select:focus {
 
 .settings-tab {
   z-index: 4;
-  backdrop-filter: blur(10px);
   background-color: rgba(12, 2, 2, 0.58);
   animation: fadeIn 180ms ease both;
 }
@@ -1287,6 +1348,7 @@ select:focus {
   border-radius: 10px;
   border-color: rgba(255, 211, 98, 0.22);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
 }
 
 .settings-grid {
@@ -1305,6 +1367,49 @@ select:focus {
   border: 1px solid rgba(255, 211, 98, 0.16);
   border-radius: 8px;
   background: rgba(82, 12, 11, 0.26);
+  backdrop-filter: blur(8px);
+}
+
+.settings-background-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 190px;
+}
+
+.settings-background-control .button {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 214, 116, 0.18);
+  border-radius: 8px;
+  color: #fff4dc;
+  text-decoration: none;
+  background: rgba(34, 7, 8, 0.52);
+  backdrop-filter: blur(10px);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.github-link:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 224, 142, 0.42);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+}
+
+.github-link-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  flex: 0 0 auto;
 }
 
 .splash-screen {
@@ -1377,7 +1482,11 @@ select:focus {
 
 .splash-github-word {
   min-width: 168px;
-  color: #fff8ec;
+  background: linear-gradient(90deg, #7ee7ff, #fff176, #ff6b6b, #b78cff, #7ee7ff);
+  background-size: 320% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: 46px;
   font-weight: 900;
   letter-spacing: 0;
@@ -1386,7 +1495,7 @@ select:focus {
   text-shadow:
     0 0 18px rgba(255, 83, 70, 0.34),
     0 14px 34px rgba(0, 0, 0, 0.36);
-  animation: githubWordReveal 2300ms ease both;
+  animation: githubWordReveal 2300ms ease both, githubWordColor 1150ms steps(2, end) 420ms 2;
 }
 
 .cmmdx-title {
@@ -1571,6 +1680,79 @@ select:focus {
   margin: 24px auto;
 }
 
+#settingsPanel .settings-inline {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+#settingsPanel .settings-tab-content {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 18px;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 4px 12px 12px 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#settingsPanel .settings-tab-content > .text-sm:first-child {
+  grid-column: 1;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+#settingsPanel .settings-grid {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+}
+
+#settingsPanel .settings-tab-content > .text-sm.mu-2 {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+}
+
+#settingsPanel .settings-tab-content > .flex,
+#settingsPanel .settings-tab-content > label.containerCheckbox,
+#settingsPanel .settings-tab-content > p.text-sm:not(:first-child),
+#settingsPanel .settings-tab-content > button {
+  grid-column: 2;
+}
+
+#settingsPanel .settings-tab-content > p.text-sm:last-of-type,
+#settingsPanel #resetConfig {
+  grid-column: 1;
+}
+
+#settingsPanel .settings-row,
+#settingsPanel .settings-tab-content > .flex {
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+#settingsPanel .settings-tab-content > .flex {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 211, 98, 0.16);
+  border-radius: 8px;
+  background: rgba(82, 12, 11, 0.26);
+  backdrop-filter: blur(8px);
+}
+
 #closeSettings {
   position: absolute !important;
   top: 14px !important;
@@ -1675,6 +1857,15 @@ body.theme-summer {
   background:
     radial-gradient(circle at 79% 13%, rgba(255, 215, 99, 0.16), transparent 18%),
     linear-gradient(145deg, #240706 0%, #3a0b08 52%, #150403 100%);
+}
+
+body.custom-background,
+body.theme-summer.custom-background,
+body.theme-winter.custom-background {
+  background-image: var(--custom-background-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 body.theme-summer .sun {
@@ -1947,6 +2138,20 @@ body.time-night.theme-winter .snow {
   100% {
     opacity: 0;
     transform: translateX(-44vw);
+  }
+}
+
+@keyframes githubWordColor {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 62% 50%;
+  }
+
+  100% {
+    background-position: 100% 50%;
   }
 }
 
