@@ -72,12 +72,20 @@ function hashText(text) {
   return String(hash)
 }
 
+function explainGeminiError(message) {
+  const text = String(message || '')
+  if (/denied access|permission denied|api key not valid|api_key_invalid/i.test(text)) {
+    return `${text} Check the Gemini API key, AI Studio project access, and billing/quota. Create a fresh key from the same enabled project if needed.`
+  }
+  return text
+}
+
 export class GeminiProvider extends LLMProvider {
   constructor({
     apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
     baseUrl = 'https://generativelanguage.googleapis.com/v1beta',
-    model = 'gemini-2.5-flash-lite',
-    fallbackModels = ['gemini-2.5-flash', 'gemini-2.5-pro'],
+    model = 'gemini-flash-latest',
+    fallbackModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
     timeoutMs = 30000,
     retries = 1
   } = {}) {
@@ -103,9 +111,7 @@ export class GeminiProvider extends LLMProvider {
   }
 
   endpoint(path = '', modelName = this.model) {
-    const model = String(modelName || '').startsWith('models/')
-      ? modelName
-      : `models/${modelName}`
+    const model = String(modelName || '').startsWith('models/') ? modelName : `models/${modelName}`
     return `${this.baseUrl}/${model}${path}`
   }
 
@@ -174,68 +180,66 @@ export class GeminiProvider extends LLMProvider {
     let lastError
     for (const modelName of this.modelCandidates()) {
       for (let attempt = 0; attempt <= this.retries; attempt++) {
-      try {
-        console.log('[GEMINI] Request Sent', { model: modelName, attempt: attempt + 1 })
-        const response = await fetch(this.endpoint(':generateContent', modelName), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey
-          },
-          signal: AbortSignal.timeout(this.timeoutMs),
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{ text: system }]
+        try {
+          console.log('[GEMINI] Request Sent', { model: modelName, attempt: attempt + 1 })
+          const response = await fetch(this.endpoint(':generateContent', modelName), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-goog-api-key': this.apiKey
             },
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: prompt }]
+            signal: AbortSignal.timeout(this.timeoutMs),
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: system }]
+              },
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: prompt }]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.25,
+                topP: 0.9,
+                responseMimeType: format === 'json' ? 'application/json' : 'text/plain'
               }
-            ],
-            generationConfig: {
-              temperature: 0.25,
-              topP: 0.9,
-              responseMimeType: format === 'json' ? 'application/json' : 'text/plain'
-            }
+            })
           })
-        })
-        const data = await response.json().catch(() => ({}))
-        this.lastRawResponse = data
-        const text =
-          data.candidates?.[0]?.content?.parts
-            ?.map((part) => part.text || '')
-            .join('') || ''
-        const json = format === 'json' ? extractJson(text) : undefined
-        this.lastParsed = json
+          const data = await response.json().catch(() => ({}))
+          this.lastRawResponse = data
+          const text =
+            data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || ''
+          const json = format === 'json' ? extractJson(text) : undefined
+          this.lastParsed = json
 
-        const latencyMs = Date.now() - startedAt
-        this.metrics.lastLatencyMs = latencyMs
-        this.metrics.totalLatencyMs += latencyMs
-        if (response.ok) this.metrics.successes++
-        else this.metrics.failures++
+          const latencyMs = Date.now() - startedAt
+          this.metrics.lastLatencyMs = latencyMs
+          this.metrics.totalLatencyMs += latencyMs
+          if (response.ok) this.metrics.successes++
+          else this.metrics.failures++
 
-        if (!response.ok) {
-          const message = data.error?.message || `gemini_http_${response.status}`
-          this.metrics.lastError = message
-          lastError = new Error(message)
-          if (this.isRetryableError(response, data)) {
-            console.log('[GEMINI] Retryable model failure', { model: modelName, message })
-            break
+          if (!response.ok) {
+            const message = explainGeminiError(data.error?.message || `gemini_http_${response.status}`)
+            this.metrics.lastError = message
+            lastError = new Error(message)
+            if (this.isRetryableError(response, data)) {
+              console.log('[GEMINI] Retryable model failure', { model: modelName, message })
+              break
+            }
+            return { ok: false, error: message, text, json, raw: data, model: modelName }
           }
-          return { ok: false, error: message, text, json, raw: data, model: modelName }
-        }
 
-        if (modelName !== this.model) {
-          console.log('[GEMINI] Fallback model selected', { from: this.model, to: modelName })
-          this.model = modelName
+          if (modelName !== this.model) {
+            console.log('[GEMINI] Fallback model selected', { from: this.model, to: modelName })
+            this.model = modelName
+          }
+          return { ok: true, text, json, raw: data, model: modelName }
+        } catch (error) {
+          lastError = error
+          this.metrics.retries++
+          console.log('[GEMINI] Request failed', error)
         }
-        return { ok: true, text, json, raw: data, model: modelName }
-      } catch (error) {
-        lastError = error
-        this.metrics.retries++
-        console.log('[GEMINI] Request failed', error)
-      }
       }
     }
 

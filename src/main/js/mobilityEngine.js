@@ -21,6 +21,15 @@ const REPLACEABLE_BLOCKS = new Set([
   'snow'
 ])
 
+const MOBILITY_STATES = {
+  IDLE: 'IDLE',
+  PLANNING: 'PLANNING',
+  MOVING: 'MOVING',
+  RECOVERING: 'RECOVERING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED'
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -46,6 +55,49 @@ function normalizePosition(position) {
     x: Math.floor(Number(position.x)),
     y: Math.floor(Number(position.y)),
     z: Math.floor(Number(position.z))
+  }
+}
+
+function toVec3(position) {
+  if (!position) return undefined
+  if (
+    typeof position.offset === 'function' &&
+    typeof position.clone === 'function' &&
+    typeof position.distanceTo === 'function'
+  ) {
+    return position
+  }
+  const x = Number(position.x)
+  const y = Number(position.y)
+  const z = Number(position.z)
+  if (![x, y, z].every(Number.isFinite)) return undefined
+  const proto = Object.getPrototypeOf(position)
+  const Vec3Ctor = proto?.constructor
+  if (typeof Vec3Ctor === 'function' && Vec3Ctor.name === 'Vec3') {
+    return new Vec3Ctor(x, y, z)
+  }
+  return {
+    x,
+    y,
+    z,
+    clone() {
+      return toVec3({ x, y, z })
+    },
+    floored() {
+      return toVec3({ x: Math.floor(x), y: Math.floor(y), z: Math.floor(z) })
+    },
+    offset(dx = 0, dy = 0, dz = 0) {
+      return toVec3({ x: x + Number(dx), y: y + Number(dy), z: z + Number(dz) })
+    },
+    minus(other) {
+      const target = toVec3(other) || { x: 0, y: 0, z: 0 }
+      return toVec3({ x: x - target.x, y: y - target.y, z: z - target.z })
+    },
+    distanceTo(other) {
+      const target = toVec3(other)
+      if (!target) return Infinity
+      return Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2 + (z - target.z) ** 2)
+    }
   }
 }
 
@@ -77,6 +129,7 @@ export class GeminiMobilityEngine {
     this.lastReactionAt = 0
     this.version = 'v2'
     this.activeSession = undefined
+    this.state = MOBILITY_STATES.IDLE
     this.routeBlacklist = new Map()
     this.pathUpdate = undefined
     this.recoveryHistory = []
@@ -95,7 +148,7 @@ export class GeminiMobilityEngine {
       if (result?.status) this.emit('path_update', this.pathUpdate)
     })
     this.bot.on('goal_reached', () => {
-      this.pathUpdate = { status: 'goal_reached', time: Date.now() }
+      this.pathUpdate = { status: 'goal_reached', time: Date.now(), unverified: true }
       this.emit('goal_reached')
     })
   }
@@ -221,7 +274,7 @@ export class GeminiMobilityEngine {
     const yaw = this.bot.entity?.yaw || 0
     return {
       x: -Math.sin(yaw) * distance,
-      z: -Math.cos(yaw) * distance
+      z: Math.cos(yaw) * distance
     }
   }
 
@@ -440,8 +493,9 @@ export class GeminiMobilityEngine {
 
   distanceTo(position) {
     const current = this.bot.entity?.position
-    if (!current || !position) return Infinity
-    return current.distanceTo(position)
+    const target = toVec3(position)
+    if (!current || !target) return Infinity
+    return current.distanceTo(target)
   }
 
   isReplaceable(block) {
@@ -455,21 +509,9 @@ export class GeminiMobilityEngine {
   isSafeStandPosition(position) {
     const target = normalizePosition(position)
     if (!target || !this.bot?.blockAt) return false
-    const feet = this.bot.blockAt({
-      x: target.x,
-      y: target.y,
-      z: target.z
-    })
-    const head = this.bot.blockAt({
-      x: target.x,
-      y: target.y + 1,
-      z: target.z
-    })
-    const below = this.bot.blockAt({
-      x: target.x,
-      y: target.y - 1,
-      z: target.z
-    })
+    const feet = this.bot.blockAt(toVec3({ x: target.x, y: target.y, z: target.z }))
+    const head = this.bot.blockAt(toVec3({ x: target.x, y: target.y + 1, z: target.z }))
+    const below = this.bot.blockAt(toVec3({ x: target.x, y: target.y - 1, z: target.z }))
     return this.isReplaceable(feet) && this.isReplaceable(head) && this.isSolidSafe(below)
   }
 
@@ -492,9 +534,7 @@ export class GeminiMobilityEngine {
         }
       }
     }
-    return candidates
-      .sort((a, b) => this.distanceTo(a) - this.distanceTo(b))
-      .slice(0, 12)
+    return candidates.sort((a, b) => this.distanceTo(a) - this.distanceTo(b)).slice(0, 12)
   }
 
   async dynamicReplanNudge() {
@@ -508,21 +548,23 @@ export class GeminiMobilityEngine {
   }
 
   async smoothNavigateTo(position, options = {}) {
-    if (!this.bot.pathfinder || !this.goals || !position) {
+    const targetPosition = toVec3(position)
+    if (!this.bot.pathfinder || !this.goals || !targetPosition) {
       console.log('[MOBILITY] Path Failure', {
         reason: 'pathfinder_or_target_missing',
         hasPathfinder: Boolean(this.bot.pathfinder),
         hasGoals: Boolean(this.goals),
-        hasPosition: Boolean(position)
+        hasPosition: Boolean(targetPosition)
       })
       return false
     }
+    position = targetPosition
     if (![position.x, position.y, position.z].every((value) => Number.isFinite(Number(value)))) {
       console.log('[MOBILITY] Path Failure', { reason: 'invalid_target', position })
       return false
     }
     const near = clamp(options.near, 1, 8, 2)
-    const successDistance = clamp(options.successDistance, 0.5, 2, 1.8)
+    const successDistance = clamp(options.successDistance, 0.5, 8, near)
     const timeoutMs = clamp(options.timeoutMs, 1500, 120000, 25000)
     const watchdogMs = clamp(options.watchdogMs, 1000, 15000, 5000)
     const startedAt = Date.now()
@@ -534,13 +576,23 @@ export class GeminiMobilityEngine {
     let movedAtAll = false
     let recoveries = 0
     let lastGoalSetAt = 0
+    let withinDistanceSince
+    let stableWithinSince
+    let lastStrictPosition = this.bot.entity?.position?.clone()
+    let lastRecoveryAt = 0
+    let lastRecoveryReason = ''
 
+    this.state = MOBILITY_STATES.PLANNING
     this.emit('plan_started', {
       target: this.formatPosition(position),
       near,
       mode: 'smooth_path'
     })
     const goal = this.createGoal(position, near, options)
+    if (!goal) {
+      this.state = MOBILITY_STATES.FAILED
+      return { ok: false, reason: 'goal_creation_failed', state: MOBILITY_STATES.FAILED }
+    }
     console.log('[MOBILITY] Pathfinder integration', {
       pathfinderLoaded: Boolean(this.bot.pathfinder),
       goalType: goal.constructor?.name,
@@ -555,31 +607,55 @@ export class GeminiMobilityEngine {
       target: normalizePosition(position),
       startedAt,
       recoveries: 0,
-      mode: 'adaptive_path'
+      mode: 'adaptive_path',
+      state: MOBILITY_STATES.PLANNING
     }
 
     while (Date.now() - startedAt < timeoutMs) {
       const current = this.bot.entity?.position
       if (!current) break
       const distance = current.distanceTo(position)
+      const now = Date.now()
       const movedSinceWatchdog = lastWatchdogPosition ? current.distanceTo(lastWatchdogPosition) : 0
       if (movedSinceWatchdog > 0.12) {
         movedAtAll = true
-        lastMovementAt = Date.now()
+        lastMovementAt = now
         lastWatchdogPosition = current.clone()
       }
+      this.state = this.state === MOBILITY_STATES.RECOVERING ? this.state : MOBILITY_STATES.MOVING
+      if (this.activeSession) this.activeSession.state = this.state
 
-      if (Date.now() - lastLogAt > 1000) {
-        lastLogAt = Date.now()
+      if (now - lastLogAt > 1000) {
+        lastLogAt = now
         console.log('[MOBILITY] Movement tick', {
           currentPosition: this.formatPosition(current),
           targetPosition: this.formatPosition(position),
           distanceRemaining: Number(distance.toFixed(2)),
-          pathStatus: this.bot.pathfinder?.isMoving?.() ? 'MOVING' : 'PLANNING'
+          pathStatus: this.bot.pathfinder?.isMoving?.() ? 'MOVING' : 'PLANNING',
+          state: this.state
         })
       }
 
-      if (distance < successDistance) {
+      if (distance <= successDistance) {
+        withinDistanceSince ||= now
+        const movedStrict = lastStrictPosition ? current.distanceTo(lastStrictPosition) : 0
+        if (movedStrict <= 0.12) stableWithinSince ||= now
+        else stableWithinSince = undefined
+        lastStrictPosition = current.clone()
+      } else {
+        withinDistanceSince = undefined
+        stableWithinSince = undefined
+        lastStrictPosition = current.clone()
+      }
+
+      const strictReached =
+        distance <= successDistance &&
+        withinDistanceSince &&
+        stableWithinSince &&
+        now - withinDistanceSince >= 1000 &&
+        now - stableWithinSince >= 1000
+
+      if (strictReached) {
         this.reset()
         this.remember('route', targetKey, {
           target: this.formatPosition(position),
@@ -590,6 +666,7 @@ export class GeminiMobilityEngine {
         this.gainSkill('advancedNavigation', 2)
         this.emit('plan_finished', { target: this.formatPosition(position), distance, movedAtAll })
         this.activeSession = undefined
+        this.state = MOBILITY_STATES.COMPLETED
         console.log('[MOBILITY] Goal Reached', {
           currentPosition: this.formatPosition(current),
           targetPosition: this.formatPosition(position),
@@ -604,12 +681,26 @@ export class GeminiMobilityEngine {
       await this.microCorrect(analysis)
       const stuckScore = this.updateStuckState()
       const pathfinderNoPath =
-        analysis.pathStatus === 'noPath' && Date.now() - lastGoalSetAt > Math.min(2500, watchdogMs)
-      const watchdogExpired = Date.now() - lastMovementAt > watchdogMs
+        analysis.pathStatus === 'noPath' && now - lastGoalSetAt > Math.min(2500, watchdogMs)
+      const watchdogExpired = now - lastMovementAt > watchdogMs
+      const recoveryReason = pathfinderNoPath ? 'noPath' : watchdogExpired ? 'watchdog' : stuckScore >= 3 ? 'stuck' : ''
+      const recoveryCooldownActive =
+        this.state === MOBILITY_STATES.RECOVERING &&
+        recoveryReason === lastRecoveryReason &&
+        now - lastRecoveryAt < 1600
 
-      if ((stuckScore >= 3 || watchdogExpired || pathfinderNoPath) && recoveries < maxRecoveries) {
+      if (
+        recoveryReason &&
+        !recoveryCooldownActive &&
+        distance > successDistance &&
+        recoveries < maxRecoveries
+      ) {
         recoveries += 1
         this.activeSession.recoveries = recoveries
+        this.state = MOBILITY_STATES.RECOVERING
+        this.activeSession.state = this.state
+        lastRecoveryAt = now
+        lastRecoveryReason = recoveryReason
         this.bot.pathfinder.setGoal(null)
         this.reset()
         this.memory?.rememberFailure?.('movement_recovery', {
@@ -634,6 +725,8 @@ export class GeminiMobilityEngine {
         lastGoalSetAt = Date.now()
         lastMovementAt = Date.now()
         lastWatchdogPosition = this.bot.entity?.position?.clone()
+        this.state = MOBILITY_STATES.PLANNING
+        if (this.activeSession) this.activeSession.state = this.state
         continue
       }
 
@@ -660,6 +753,7 @@ export class GeminiMobilityEngine {
           recoveries
         })
         this.activeSession = undefined
+        this.state = MOBILITY_STATES.FAILED
         return {
           ok: false,
           reason: pathfinderNoPath ? 'No Path After Recovery' : 'Bot Stuck',
@@ -680,6 +774,7 @@ export class GeminiMobilityEngine {
     })
     this.emit('plan_failed', { target: this.formatPosition(position), reason: 'timeout' })
     this.activeSession = undefined
+    this.state = MOBILITY_STATES.FAILED
     console.log('[MOBILITY] Path Failure', {
       reason: 'Path Timeout',
       targetPosition: this.formatPosition(position)
@@ -688,6 +783,8 @@ export class GeminiMobilityEngine {
   }
 
   async reach(position, options = {}) {
+    position = toVec3(position)
+    if (!position) return { ok: false, reason: 'invalid_reach_position', state: MOBILITY_STATES.FAILED }
     const analysis = this.analyzeEnvironment(position)
     this.emit('reach_requested', {
       target: this.formatPosition(position),
@@ -948,6 +1045,7 @@ export class GeminiMobilityEngine {
     const analysis = this.analyzeEnvironment()
     return {
       version: this.version,
+      state: this.state,
       skills: this.skillXp,
       skillStats: this.skillRates(),
       stuckTicks: this.stuckTicks,

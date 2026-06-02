@@ -18,7 +18,7 @@ export class GeminiMinecraftController {
     this.store = store
     this.sendEvent = sendEvent
     this.llm = createGeminiProvider({
-      model: model || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+      model: model || process.env.GEMINI_MODEL || 'gemini-flash-latest',
       apiKey: apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
       timeoutMs: 25000,
       retries: 1
@@ -47,7 +47,8 @@ export class GeminiMinecraftController {
         players: {},
         resources: {},
         locations: {},
-        reflections: []
+        reflections: [],
+        actions: []
       },
       rememberEvent: (event) => this.rememberEvent(event),
       rememberPlayer: (name, patch) => {
@@ -73,7 +74,8 @@ export class GeminiMinecraftController {
         resources: Object.keys(this.memory.state.resources).length,
         locations: Object.keys(this.memory.state.locations).length,
         failures: this.memory.state.failures.length,
-        successes: this.memory.state.successes.length
+        successes: this.memory.state.successes.length,
+        actions: this.memory.state.actions.length
       })
     }
     this.active = false
@@ -161,18 +163,19 @@ export class GeminiMinecraftController {
   toolNames() {
     return [
       'say',
-      'move_to',
+      'come_to_player',
       'follow_player',
+      'protect_player',
+      'gather_wood',
+      'explore_cave',
+      'gather_resource',
       'stop',
-      'mine_block',
-      'place_block',
       'craft_item',
       'equip_item',
       'eat_food',
-      'attack_entity',
-      'look_at',
       'use_item',
       'give_items',
+      'make_crafting_table_for_player',
       'status',
       'inventory',
       'explore',
@@ -189,19 +192,48 @@ export class GeminiMinecraftController {
       speaker: username,
       message,
       observation,
-      availableTools: this.toolNames(),
+      availableIntents: this.toolNames(),
       rules: [
-        'You are controlling a Mineflayer Minecraft bot through tools.',
+        'You are an intent planner for a Mineflayer Minecraft bot.',
         'Return JSON only.',
         'Do not output markdown.',
-        'If the player gives a command, choose actions to execute it.',
-        'If you need to answer, use the say tool.',
-        'Use short action lists. Prefer one to three actions.',
+        'Return high-level intents, not raw movement, coordinates, camera control, or pathfinder commands.',
+        'Never choose raw coordinates for ordinary commands like come, follow, protect, gather, explore, mine, or build. Let the Skill Engine and Mobility Engine select entities, coordinates, routes, obstacles, and retries.',
+        'If the player gives a command, choose intents to execute it.',
+        'If the command is actionable, use intents instead of only replying.',
+        'If the message is casual talk, a question, a greeting, or acknowledgement without an explicit Minecraft action command, use only say and do not move, follow, explore, mine, place, attack, or use tools.',
+        'Never move randomly. Only use movement-related intents when the player explicitly asks you to come, follow, go somewhere, walk, move, or explore.',
+        'Never return an empty intent for a clear Minecraft command. If the request can be acted on, return one intent object.',
+        'If the exact target is uncertain but the intent is clear, choose the closest safe tool and use semantic args from the message and observation.',
+        'If you need to answer only, use intent "say".',
+        'Prefer one primary intent. Use an intents array only when the player asked for a compound task.',
+        'For Turkish commands: "odun kır", "ağaç kes", "agac kes" means mine_block with block "wood"; "taş kır" means mine_block with block "stone"; "keşfet", "kesfet", "explore" means explore.',
+        'Use observation.local3dModel as your compact 3D world model. Interpret nearby trees, dirt, ores, stone, water, utility blocks, terrain, and structures from categories and coordinates.',
+        'Do not treat natural-language object words as only exact Minecraft block IDs. For example, tree means nearby trunk plus leaves in local3dModel.',
+        'For semantic requests like wood, tree, ore, mine, stone, dirt, ground, farm, water, or cave, infer the target from local3dModel.categoryCounts, nearestByCategory, likelyTrees, visibleOres, and block coordinates.',
+        'When a nearby category target exists, choose a tool action for that target instead of saying you cannot find the exact block name.',
+        'Do not invent random move_to coordinates. Prefer come_to_player, follow_player, protect_player, gather_resource, gather_wood, explore_cave, craft_item, or make_crafting_table_for_player.',
+        'Intent-only override: do not output move_to, mine_block, place_block, attack_entity, look_at, x/y/z, yaw, pitch, or pathfinder goals. Output semantic intents such as come_to_player, follow_player, protect_player, gather_wood, gather_resource, explore_cave, craft_item, eat_food, sleep, smelt_item, or say.',
+        'For wood/tree/ore/stone/dirt/ground/cave requests, output gather_wood, gather_resource, or explore_cave with semantic target names, never coordinates.',
+        'For resource commands, prefer gather_resource, gather_wood, craft_item, eat_food, protect_player, or explore over raw movement.',
+        'This semantic interpretation applies to every Minecraft request, not only wood or stone. The player may refer to any block, item, mob, player, terrain feature, structure, resource, fluid, tool, food, or action in Turkish or English.',
+        'For any requested object, first infer the intended target from local3dModel, nearbyEntities, inventory, exact block names, categories, and coordinates.',
+        'For mining/digging requests, use gather_resource or gather_wood with semantic target names. Do not return coordinates.',
+        'For Turkish come/follow commands like "gel", "yanima gel", "beni takip et", "takip et", "arkamdan gel", "beni izle", use come_to_player or follow_player with args {player: speaker, near: 2}.',
+        'For English come/follow commands like "come", "come to me", "follow me", use come_to_player or follow_player with args {player: speaker, near: 2}.',
+        'For protect commands like "beni koru", "protect me", use protect_player with args {player: speaker}.',
+        'For give/drop commands, use give_items with args {player: speaker, item: requested item}. If the player says "kilici ver", "kılıcı ver", "topragi ver", or "toprağı ver", item must be the specific requested item, not all.',
+        'Only set item to "all" when the player explicitly says all, hepsi, hepsini, tum, tüm, everything, or an equivalent all-items phrase. Never omit item for give_items.',
+        'For compound requests like collect wood, craft planks, craft a crafting table, and give it to the speaker, use make_crafting_table_for_player with args {logs: requested log count or 3, player: speaker}.',
+        'For non-mining requests, select the matching intent: come_to_player, follow_player, protect_player, gather_resource, gather_wood, explore_cave, craft_item, equip_item, eat_food, use_item, explore, smelt_item, sleep, or say.',
         'Never request shell, filesystem, network, or arbitrary JavaScript execution.'
       ],
       responseShape: {
         reply: 'short optional chat reply',
-        actions: [{ tool: 'tool_name', args: {}, reason: 'short reason' }]
+        intent: 'intent_name',
+        target: 'semantic target or speaker',
+        parameters: {},
+        reason: 'short visible reason, not hidden chain of thought'
       }
     }
     const response = await this.llm.complete(safeJson(prompt), { format: 'json' })
@@ -212,10 +244,98 @@ export class GeminiMinecraftController {
       this.memory.rememberFailure('gemini_chat', { error: response.error, username, message })
       return { ok: false, error: response.error, actions: [] }
     }
-    const actions = Array.isArray(response.json?.actions) ? response.json.actions : []
+    let actions = []
+    if (Array.isArray(response.json?.intents)) {
+      actions = response.json.intents.map((intent) => this.intentObjectToAction(intent, username))
+    } else if (response.json?.intent && typeof response.json.intent === 'string') {
+      actions = [this.intentObjectToAction(response.json, username)]
+    } else if (Array.isArray(response.json?.actions)) {
+      actions = response.json.actions
+    } else if (Array.isArray(response.json)) {
+      actions = response.json
+    } else if (response.json?.tool) {
+      actions = [response.json]
+    } else if (response.json?.action?.tool) {
+      actions = [response.json.action]
+    }
     return {
       ok: true,
       reply: response.json?.reply,
+      intent: response.json?.intent || response.json?.reason || response.json?.plan,
+      actions,
+      raw: response.json
+    }
+  }
+
+  intentObjectToAction(intentObject = {}, username) {
+    const intent = String(intentObject.intent || intentObject.tool || '').trim()
+    const parameters =
+      intentObject.parameters && typeof intentObject.parameters === 'object'
+        ? intentObject.parameters
+        : intentObject.args && typeof intentObject.args === 'object'
+          ? intentObject.args
+          : {}
+    const target = intentObject.target ?? parameters.target
+    return {
+      tool: intent,
+      args: {
+        ...parameters,
+        target,
+        player: parameters.player || (target === 'speaker' ? username : undefined)
+      },
+      reason: intentObject.reason || intentObject.intentReason || 'intent selected by Gemini'
+    }
+  }
+
+  async repairEmptyAction({ username, message, observation, previous }) {
+    this.metrics.requests++
+    this.debug.executionState = 'THINKING'
+    const prompt = {
+      task: 'minecraft_chat_control_repair',
+      speaker: username,
+      message,
+      observation,
+      previous,
+      availableIntents: this.toolNames(),
+      rules: [
+        'The previous response did not include a usable intent.',
+        'If the player command is actionable in Minecraft, return JSON with one high-level intent.',
+        'Use only availableIntents.',
+        'Return JSON only. No markdown.',
+        'Do not reveal hidden chain of thought. Provide only a short intent summary and action reasons.',
+        'For uncertain targets, choose the safest closest semantic intent from the observation.',
+        'Never return coordinates, pathfinder commands, camera control, or direct movement instructions.'
+      ],
+      responseShape: {
+        reply: 'short optional chat reply',
+        intent: 'intent_name',
+        target: 'semantic target or speaker',
+        parameters: {},
+        reason: 'short visible reason'
+      }
+    }
+    const response = await this.llm.complete(safeJson(prompt), { format: 'json' })
+    this.debug.lastGeminiResponse = response.raw || response.text
+    this.debug.executionState = response.ok ? 'ACTING' : 'FAILED'
+    if (!response.ok) {
+      this.debug.lastError = response.error
+      return { ok: false, error: response.error, actions: [] }
+    }
+
+    let actions = []
+    if (Array.isArray(response.json?.intents)) {
+      actions = response.json.intents.map((intent) => this.intentObjectToAction(intent, username))
+    } else if (response.json?.intent && typeof response.json.intent === 'string') {
+      actions = [this.intentObjectToAction(response.json, username)]
+    } else if (Array.isArray(response.json?.actions)) actions = response.json.actions
+    else if (Array.isArray(response.json)) actions = response.json
+    else if (response.json?.tool) actions = [response.json]
+    else if (response.json?.action?.tool) actions = [response.json.action]
+
+    return {
+      ok: true,
+      reply: response.json?.reply,
+      intent: response.json?.intent || response.json?.reason || response.json?.plan,
       actions,
       raw: response.json
     }

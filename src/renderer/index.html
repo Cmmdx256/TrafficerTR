@@ -138,8 +138,7 @@
                 <select id="authType" class="mu">
                   <option value="offline">Cracked</option>
                   <option value="microsoft">Microsoft</option>
-                  <option value="easymc">EasyMC</option>
-                  <option value="altening" disabled>TheAltening</option>
+                  <option value="elyby">Ely.by</option>
                 </select>
               </div>
 
@@ -663,6 +662,7 @@
                   <div class="flex mu-2">
                     <p class="text-sm pr-4">Gemini model:</p>
                     <select id="aiModel" class="mu-1">
+                      <option value="gemini-flash-latest">Gemini Flash Latest</option>
                       <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
                       <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                       <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
@@ -672,7 +672,7 @@
                   <div class="mu-1">
                     <p class="text-sm mu-4">Commands</p>
                     <p class="text-sm-2 mu-2"><code>ai on/off/help/status</code>Controls autonomous mode</p>
-                    <p class="text-sm-2"><code>ai model gemini-2.5-flash</code>Changes Gemini model</p>
+                    <p class="text-sm-2"><code>ai model gemini-flash-latest</code>Changes Gemini model</p>
                     <p class="text-sm-2"><code>ai follow me</code>Gemini hears chat and controls selected bots</p>
                     <p class="text-sm-2"><code>ai stop</code>Stops current movement/action</p>
                     <p class="text-sm-2"><code>move forward 800</code>Moves with body controls</p>
@@ -923,7 +923,26 @@ end"></textarea>
 
             <div class="about-copy">
               <p class="text-sm">TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.</p>
-              <p class="text-sm-2">Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.</p>
+              <p class="text-sm-2">TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.</p>
+
+              <div class="about-release-notes">
+                <div>
+                  <p class="text-sm">Added</p>
+                  <p class="text-sm-2">Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.</p>
+                </div>
+                <div>
+                  <p class="text-sm">Fixed / being fixed</p>
+                  <p class="text-sm-2">Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.</p>
+                </div>
+                <div>
+                  <p class="text-sm">Under maintenance</p>
+                  <p class="text-sm-2">AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.</p>
+                </div>
+                <div>
+                  <p class="text-sm">In development</p>
+                  <p class="text-sm-2">World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.</p>
+                </div>
+              </div>
               <a class="github-link" href="https://github.com/Cmmdx256/TrafficerTR">
                 <svg class="github-link-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.58.1.79-.25.79-.56v-2.14c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.7.42.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
@@ -936,7 +955,7 @@ end"></textarea>
             <div class="about-meta">
               <div>
                 <p class="tip-sm">Build</p>
-                <p class="text-sm-2">TrafficerTR v1.2</p>
+                <p class="text-sm-2">TrafficerTR v1.2 Fixed</p>
               </div>
               <div>
                 <p class="tip-sm">Focus</p>
@@ -964,7 +983,7 @@ end"></textarea>
             </select>
           </div>
 
-          <div class="settings-row">
+          <div id="themeSettingsRow" class="settings-row">
             <p class="text-sm-2" data-i18n="settings.theme">Theme</p>
             <select id="uiTheme">
               <option value="winter" data-i18n="theme.winter">Winter</option>
@@ -975,6 +994,7 @@ end"></textarea>
             <p class="text-sm-2" data-i18n="settings.background">Background GIF</p>
             <div class="settings-background-control">
               <button id="customBackgroundLabel" class="button" data-i18n="settings.backgroundChoose">Choose file</button>
+              <button id="clearCustomBackground" class="button background-clear" data-i18n="settings.backgroundClear">Remove</button>
               <p class="tip-sm" data-i18n="settings.backgroundSize">Recommended: 1920x1080, minimum 1100x620</p>
             </div>
           </div>

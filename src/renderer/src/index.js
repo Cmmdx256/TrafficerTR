@@ -13,6 +13,7 @@ const translations = {
     'settings.theme': 'Theme',
     'settings.background': 'Background GIF',
     'settings.backgroundChoose': 'Choose file',
+    'settings.backgroundClear': 'Remove',
     'settings.backgroundSize': 'Recommended: 1920x1080, minimum 1100x620',
     'badge.maintenance': 'UNDERMAINTENANCE',
     'settings.bot': 'Bot settings',
@@ -56,6 +57,7 @@ const translations = {
     'settings.theme': 'Tema',
     'settings.background': 'Arka plan GIF',
     'settings.backgroundChoose': 'Dosya seç',
+    'settings.backgroundClear': 'Kaldır',
     'settings.backgroundSize': 'Önerilen: 1920x1080, minimum 1100x620',
     'badge.maintenance': 'BAKIMDA',
     'settings.bot': 'Bot ayarları',
@@ -86,6 +88,9 @@ const translations = {
     'bot.connection': 'Bağlantı: '
   }
 }
+
+const offlineCleanupTimers = new Map()
+const OFFLINE_BOT_CLEANUP_MS = 30000
 
 const textKeys = {
   'Username:': 'Username:',
@@ -248,11 +253,30 @@ const textKeys = {
     'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.',
   'This build is maintained independently and is not connected to the original project social links.':
     'This build is maintained independently and is not connected to the original project social links.',
+  'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
+    'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.',
+  'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.':
+    'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.',
+  'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
+    'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.',
+  Added: 'Added',
+  'Fixed / being fixed': 'Fixed / being fixed',
+  'Under maintenance': 'Under maintenance',
+  'In development': 'In development',
+  'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+    'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
+  'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
+  'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.',
+  'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
+    'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.',
   'Independent Minecraft bot client': 'Independent Minecraft bot client',
   Build: 'Build',
   Focus: 'Focus',
   Status: 'Status',
   'TrafficerTR v1.2': 'TrafficerTR v1.2',
+  'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
   'Gemini AI, pathfinder, webhooks': 'Gemini AI, pathfinder, webhooks',
   'Actively maintained': 'Actively maintained'
 }
@@ -419,11 +443,30 @@ const localizedText = {
       'TrafficerTR yapısını temiz düzeltmeler, yeni Minecraft uyumluluğu ve kendi derleyip çalıştırmak isteyenler için daha akıcı bir deneyim odağıyla geliştiriyorum.',
     'This build is maintained independently and is not connected to the original project social links.':
       'Bu sürüm bağımsız olarak geliştirilmektedir ve orijinal projenin sosyal bağlantılarıyla ilişkili değildir.',
+    'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
+      'TrafficerTR; modern Minecraft bot kontrolü, Gemini sohbet otomasyonu ve daha temiz bir masaüstü deneyimi odağıyla Glock (Cmmdx) tarafından geliştiriliyor.',
+    'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.':
+      'Sürüm 1.2, AI kontrolünü Geminiye taşır, çoklu bot kuyruk yönetimini iyileştirir ve arayüzü hızlı bot işlemlerine odaklı tutar.',
     'Independent Minecraft bot client': 'Bağımsız Minecraft bot client',
+    'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
+      'TrafficerTR v1.2 Fixed; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
+    Added: 'Eklenenler',
+    'Fixed / being fixed': 'Duzeltilenler / duzeltilmeye calisilanlar',
+    'Under maintenance': 'Bakimda',
+    'In development': 'Gelistirme asamasinda',
+    'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+      'Gemini API key alani, Gemini Flash Latest model secenegi, intent router, canli oyuncu takip intentleri, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+      'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
+      'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker sonraki surum icin planlaniyor.',
+    'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
+      'World Model kaliciligi, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine ve Reflection Engine gelistiriliyor.',
     Build: 'Derleme',
     Focus: 'Odak',
     Status: 'Durum',
     'TrafficerTR v1.2': 'TrafficerTR v1.2',
+    'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
     'Gemini AI, pathfinder, webhooks': 'Gemini AI, yol bulucu, webhook',
     'Actively maintained': 'Aktif olarak geliştiriliyor'
   }
@@ -496,18 +539,20 @@ window.addEventListener('DOMContentLoaded', () => {
   window.electron?.ipcRenderer.on('setConfig', (event, config, version) => {
     setConfigValues(config)
     applyUISettings()
-    document.getElementById('versionString').innerHTML = `v${version.current}`
+    document.getElementById('versionString').innerHTML = `v${version.current} Fixed`
   })
 
-  window.electron?.ipcRenderer.on('fileSelected', (event, id, path) => {
-    const filename = path.match(/[^\\/]+$/)?.[0] || path
+  window.electron?.ipcRenderer.on('fileSelected', (event, id, payload) => {
+    const selection = normalizeBackgroundSelection(payload)
+    const path = id === 'customBackgroundLabel' ? selection.path : payload
+    const filename = String(path || '').match(/[^\\/]+$/)?.[0] || path
     const element = document.getElementById(id)
     if (element) {
-      element.innerHTML = filename
+      element.textContent = filename || t('settings.backgroundChoose')
       element.title = path
     }
     if (id === 'customBackgroundLabel') {
-      applyCustomBackground(path)
+      applyCustomBackground(selection)
     }
   })
 
@@ -602,17 +647,12 @@ window.addEventListener('DOMContentLoaded', () => {
   window.electron?.ipcRenderer.on('botEvent', (event, info) => {
     switch (info.event) {
       case 'login':
-        addPlayer(info.id)
+        addPlayer(info.id, 'online')
         logChat('Bot', info.id, t('bot.connected'))
         break
       case 'authmsg':
         directChat(
           `<div class="space-h"><div class="flex"><p class="text-sm link">Auth</p></div><div class="space-h-f pl-2"><p class="text-sm" style="user-select: text;">${info.id}</p></div></div><p class="text-sm-2" style="user-select: text;"> First time signing in. Use a web browser to open the page <a href="https://www.microsoft.com/link" target="_blank" rel="noreferrer" class="text-sm-2">https://www.microsoft.com/link</a> and enter the code: <a class="text-sm-2" style="border-bottom: solid 1px #a1a1a1; cursor: pointer;" onclick="navigator.clipboard.writeText('${info.message}')">${info.message} [click to copy]</a></p>`
-        )
-        break
-      case 'easymcAuth':
-        directChat(
-          `<div class="space-h"><div class="flex"><p class="text-sm link">EasyMC</p></div><div class="space-h-f pl-2"><p class="text-sm" style="user-select: text;">Authentication</p></div></div><p class="text-sm-2" style="user-select: text;"> EasyMC authentication requires an alt token. Check <a href="https://easymc.io/get" target="_blank" rel="noreferrer" class="text-sm-2">https://easymc.io/get</a> to get a token.</p>`
         )
         break
       case 'chat':
@@ -623,11 +663,15 @@ window.addEventListener('DOMContentLoaded', () => {
         break
       case 'kicked':
         logChat('Bot', info.id, t('bot.kicked') + info.message)
-        removePlayer(info.id)
+        markPlayerState(info.id, 'kicked', info.message)
+        break
+      case 'error':
+        logChat('Bot', info.id, `Connection error: ${info.message || '-'}`)
+        markPlayerState(info.id, 'error', info.message)
         break
       case 'end':
         logChat('Bot', info.id, t('bot.connection') + info.message)
-        removePlayer(info.id)
+        markPlayerState(info.id, 'offline', info.message)
         break
       default:
     }
@@ -701,6 +745,10 @@ function buttonClick(event) {
     case 'customBackgroundLabel':
       window.electron?.ipcRenderer.send('open', 'customBackgroundLabel', 'Custom Background GIF')
       break
+    case 'clearCustomBackground':
+      window.electron?.ipcRenderer.send('clearCustomBackground')
+      applyCustomBackground('')
+      break
     case 'selectAll':
       selectAll()
       break
@@ -767,7 +815,14 @@ function setConfigValues(obj) {
       const element = document.getElementById(key)
       if (element) {
         if (keyType === 'value') {
-          element.value = obj.value[key]
+          if (
+            key === 'authType' &&
+            !Array.from(element.options).some((option) => option.value === obj.value[key])
+          ) {
+            element.value = 'offline'
+          } else {
+            element.value = obj.value[key]
+          }
         } else if (keyType === 'boolean') {
           element.checked = obj.boolean[key]
         }
@@ -775,30 +830,110 @@ function setConfigValues(obj) {
     }
   }
   checkUsername()
-  applyCustomBackground(obj.value?.customBackground)
+  if (!obj.value?.customBackground) applyCustomBackground('')
 }
 
 function pathToFileUrl(path) {
   if (!path) return ''
   const normalized = String(path).replace(/\\/g, '/')
-  const prefixed = normalized.startsWith('/') ? normalized : `/${normalized}`
-  return `file://${encodeURI(prefixed)}`
+  if (normalized.startsWith('file:') || normalized.startsWith('data:')) return normalized
+  const prefixed = normalized.startsWith('/') ? normalized.slice(1) : normalized
+  const encoded = prefixed
+    .split('/')
+    .map((part, index) => {
+      if (index === 0 && /^[A-Za-z]:$/.test(part)) return part
+      return encodeURIComponent(part)
+    })
+    .join('/')
+  return `file:///${encoded}`
 }
 
-function applyCustomBackground(path) {
+function normalizeBackgroundSelection(payload) {
+  if (!payload) return { path: '', url: '', error: '' }
+  if (typeof payload === 'object') {
+    return {
+      path: payload.path || '',
+      url: payload.url || '',
+      error: payload.error || ''
+    }
+  }
+
+  const path = String(payload)
+  return {
+    path,
+    url: pathToFileUrl(path),
+    error: ''
+  }
+}
+
+function cssUrl(url) {
+  return `url("${String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`
+}
+
+function applyCustomBackground(payload) {
+  const selection = normalizeBackgroundSelection(payload)
+  const path = selection.path
+  const sourceUrl = selection.url || (path ? pathToFileUrl(path) : '')
+  const themeRow = document.getElementById('themeSettingsRow')
+  const themeSelect = document.getElementById('uiTheme')
+  const clearButton = document.getElementById('clearCustomBackground')
+  const chooseButton = document.getElementById('customBackgroundLabel')
+
   if (!path) {
     document.body.classList.remove('custom-background')
     document.body.style.removeProperty('--custom-background-image')
+    document.body.style.removeProperty('background')
     document.body.style.removeProperty('background-image')
+    document.body.style.removeProperty('background-size')
+    document.body.style.removeProperty('background-position')
+    document.body.style.removeProperty('background-repeat')
+    document.body.style.removeProperty('background-attachment')
+    if (themeRow) themeRow.style.display = 'flex'
+    if (themeSelect) themeSelect.disabled = false
+    if (clearButton) clearButton.style.display = 'none'
+    if (chooseButton) {
+      chooseButton.innerHTML = t('settings.backgroundChoose')
+      chooseButton.title = ''
+    }
     return
   }
 
-  document.body.classList.add('custom-background')
-  document.body.style.setProperty('--custom-background-image', `url("${pathToFileUrl(path)}")`)
-  document.body.style.backgroundImage = `var(--custom-background-image)`
-  document.body.style.backgroundSize = 'cover'
-  document.body.style.backgroundPosition = 'center'
-  document.body.style.backgroundRepeat = 'no-repeat'
+  if (!sourceUrl || selection.error) {
+    document.body.classList.remove('custom-background')
+    document.body.style.removeProperty('--custom-background-image')
+    if (themeRow) themeRow.style.display = 'flex'
+    if (themeSelect) themeSelect.disabled = false
+    if (clearButton) clearButton.style.display = 'inline-flex'
+    notify('Error', selection.error || 'Background GIF could not be loaded', 'error')
+    return
+  }
+
+  const preview = new Image()
+  preview.onload = () => {
+    const backgroundUrl = cssUrl(sourceUrl)
+    document.body.classList.add('custom-background')
+    document.body.style.setProperty('--custom-background-image', backgroundUrl)
+    document.body.style.background = `${backgroundUrl} center center / cover no-repeat fixed`
+    document.body.style.backgroundImage = backgroundUrl
+    document.body.style.backgroundSize = 'cover'
+    document.body.style.backgroundPosition = 'center'
+    document.body.style.backgroundRepeat = 'no-repeat'
+    document.body.style.backgroundAttachment = 'fixed'
+    if (themeRow) themeRow.style.display = 'none'
+    if (themeSelect) themeSelect.disabled = true
+    if (clearButton) clearButton.style.display = 'inline-flex'
+  }
+  preview.onerror = () => {
+    document.body.classList.remove('custom-background')
+    document.body.style.removeProperty('--custom-background-image')
+    document.body.style.removeProperty('background')
+    document.body.style.removeProperty('background-image')
+    if (themeRow) themeRow.style.display = 'flex'
+    if (themeSelect) themeSelect.disabled = false
+    if (clearButton) clearButton.style.display = 'inline-flex'
+    notify('Error', 'Background GIF could not be loaded', 'error')
+  }
+  preview.src = sourceUrl
 }
 
 function restoreUISettings() {
@@ -997,45 +1132,97 @@ function notify(title, body, type, img, keep, action) {
   }
 }
 
-function addPlayer(name) {
+function getPlayerRow(name) {
+  return Array.from(document.querySelectorAll('.botListItem')).find((bot) => {
+    return bot.dataset.name === name || bot.textContent.trim() === name
+  })
+}
+
+function renderPlayerRow(row, name, state = 'online', message = '') {
+  row.dataset.name = name
+  row.dataset.state = state
+  row.classList.toggle('offline', state !== 'online')
+  row.classList.toggle('error', state === 'error' || state === 'kicked')
+  row.title = message || ''
+  row.textContent = state === 'online' ? name : `${name} - ${state}`
+}
+
+function cancelOfflineCleanup(name) {
+  const timer = offlineCleanupTimers.get(name)
+  if (!timer) return
+  clearTimeout(timer)
+  offlineCleanupTimers.delete(name)
+}
+
+function scheduleOfflineCleanup(name) {
+  cancelOfflineCleanup(name)
+  offlineCleanupTimers.set(
+    name,
+    setTimeout(() => {
+      offlineCleanupTimers.delete(name)
+      const row = getPlayerRow(name)
+      if (!row || row.dataset.state === 'online') return
+      row.remove()
+      updateSelected()
+      updateBotCount()
+    }, OFFLINE_BOT_CLEANUP_MS)
+  )
+}
+
+function addPlayer(name, state = 'online') {
   const list = document.getElementById('botList')
   const auto = document.getElementById('autoSelect').checked
-  const b = document.createElement('li')
-  b.className = 'botListItem'
-  b.innerHTML = name
+  let b = getPlayerRow(name)
+  if (!b) {
+    b = document.createElement('li')
+    b.className = 'botListItem'
+    list.appendChild(b)
+  }
+  if (state === 'online') cancelOfflineCleanup(name)
+  else scheduleOfflineCleanup(name)
+  renderPlayerRow(b, name, state)
   b.onclick = () => {
+    if (b.dataset.state !== 'online') return
     b.classList.toggle('selected')
     updateSelected()
   }
-  list.appendChild(b)
   list.scrollTop = list.scrollHeight
   updateBotCount()
-  if (auto) {
+  if (auto && state === 'online') {
     selectAll('auto')
   }
 }
 
-function removePlayer(name) {
-  const list = document.querySelectorAll('.botListItem')
-  list.forEach((bot) => {
-    if (bot.innerHTML === name) {
-      bot.remove()
-      updateSelected()
-    }
-  })
+function markPlayerState(name, state, message = '') {
+  let bot = getPlayerRow(name)
+  if (!bot) {
+    addPlayer(name, state)
+    bot = getPlayerRow(name)
+  }
+  if (!bot) return
+  bot.classList.remove('selected')
+  if (state === 'online') cancelOfflineCleanup(name)
+  else scheduleOfflineCleanup(name)
+  renderPlayerRow(bot, name, state, message)
+  updateSelected()
   updateBotCount()
 }
 
 function updateBotCount() {
   const count = document.getElementById('botCount')
   const list = document.getElementById('botList')
-  count.innerHTML = list.children.length
+  count.innerHTML = Array.from(list.children).filter((bot) => bot.dataset.state === 'online').length
 }
 
 function selectAll(auto) {
   const list = document.getElementById('botList')
-  const allSelected = Array.from(list.children).every((li) => li.classList.contains('selected'))
+  const onlineBots = Array.from(list.children).filter((li) => li.dataset.state === 'online')
+  const allSelected = onlineBots.every((li) => li.classList.contains('selected'))
   Array.from(list.children).forEach((bot) => {
+    if (bot.dataset.state !== 'online') {
+      bot.classList.remove('selected')
+      return
+    }
     if (auto) {
       bot.classList.toggle('selected', true)
     } else {
@@ -1047,10 +1234,12 @@ function selectAll(auto) {
 
 function updateSelected() {
   const list = document.getElementById('botList')
-  const selectedBots = Array.from(list.children).filter((bot) => bot.classList.contains('selected'))
+  const selectedBots = Array.from(list.children).filter((bot) => {
+    return bot.dataset.state === 'online' && bot.classList.contains('selected')
+  })
   window.electron?.ipcRenderer.send(
     'playerList',
-    selectedBots.map((bot) => bot.innerHTML)
+    selectedBots.map((bot) => bot.dataset.name)
   )
 }
 

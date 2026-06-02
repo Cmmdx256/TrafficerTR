@@ -19,7 +19,7 @@ import {
   resolveMinecraftVersion,
   isSuspendedMinecraftVersion
 } from './js/misc/utils'
-import { easyMcAuth } from './js/misc/customAuth'
+import { applyElyByAuth } from './js/misc/customAuth'
 import { createGeminiMinecraftController } from './js/geminiController'
 import { createMobilityEngine } from './js/mobilityEngine'
 import EventEmitter from 'node:events'
@@ -63,7 +63,7 @@ function storeinfo() {
 function getConfiguredAiModel() {
   const configured = storeinfo()?.value?.aiModel
   if (!configured || !String(configured).startsWith('gemini-')) {
-    return process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+    return process.env.GEMINI_MODEL || 'gemini-flash-latest'
   }
   return configured
 }
@@ -78,6 +78,41 @@ function getConfiguredGeminiApiKey() {
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY
   )
+}
+
+const BACKGROUND_MIME_TYPES = {
+  gif: 'image/gif',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp'
+}
+
+function getBackgroundPayload(filePath) {
+  const cleanPath = typeof filePath === 'string' ? filePath : ''
+  if (!cleanPath) return { path: '', url: '', error: '' }
+
+  try {
+    if (!fs.existsSync(cleanPath)) {
+      return { path: cleanPath, url: '', error: 'File not found' }
+    }
+
+    const extension = cleanPath.match(/\.([^.]+)$/)?.[1]?.toLowerCase() || 'gif'
+    const mimeType = BACKGROUND_MIME_TYPES[extension] || 'image/gif'
+    const fileData = fs.readFileSync(cleanPath).toString('base64')
+    return {
+      path: cleanPath,
+      url: `data:${mimeType};base64,${fileData}`,
+      error: ''
+    }
+  } catch (error) {
+    console.log(error)
+    return {
+      path: cleanPath,
+      url: '',
+      error: error?.message || 'Could not read background file'
+    }
+  }
 }
 
 function rememberRecent(map, key, ttlMs) {
@@ -271,7 +306,6 @@ function sendEvent(username, event, message) {
       ])
       break
     case 'authmsg':
-    case 'easymcAuth':
       sendWebhook(
         'auth',
         'Authentication',
@@ -414,7 +448,7 @@ function notify(title, body, type, img, keep) {
 }
 
 function canUseSelectedVersion() {
-  const selectedVersion = storeinfo()?.value?.version
+  const selectedVersion = configValue('version', '')
   if (!isSuspendedMinecraftVersion(selectedVersion)) return true
   notify(
     'Version disabled',
@@ -430,6 +464,16 @@ function toBoolean(value) {
   return value === true || value === 'true' || value === '1' || value === 1
 }
 
+function configValue(key, fallback = undefined) {
+  const value = storeinfo()?.value?.[key]
+  return value === undefined || value === null ? fallback : value
+}
+
+function configBoolean(key, fallback = false) {
+  const value = storeinfo()?.boolean?.[key]
+  return value === undefined || value === null ? fallback : toBoolean(value)
+}
+
 function clampNumber(value, min, max, fallback) {
   const number = Number(value)
   if (!Number.isFinite(number)) return fallback
@@ -440,6 +484,18 @@ function stringifyDisconnectReason(reason) {
   if (!reason) return ''
   if (typeof reason === 'string') return reason
   return cleanText(reason) || JSON.stringify(reason)
+}
+
+function stringifyConnectionError(error) {
+  const message =
+    error?.message ||
+    error?.code ||
+    error?.name ||
+    stringifyDisconnectReason(error) ||
+    'Connection closed'
+  const code =
+    error?.code && !String(message).includes(String(error.code)) ? ` (${error.code})` : ''
+  return `${message}${code}`
 }
 
 function isPermanentKickReason(reason) {
@@ -625,7 +681,7 @@ function createMainWindow() {
       mainWindow.webContents.send(
         'fileSelected',
         'customBackgroundLabel',
-        store.get('config.value.customBackground')
+        getBackgroundPayload(store.get('config.value.customBackground'))
       )
     }
     mainWindow.show()
@@ -653,13 +709,22 @@ function createMainWindow() {
           } else {
             store.set('config.namefile', result.filePaths[0])
           }
-          mainWindow.webContents.send('fileSelected', id, result.filePaths[0])
+          mainWindow.webContents.send(
+            'fileSelected',
+            id,
+            isBackground ? getBackgroundPayload(result.filePaths[0]) : result.filePaths[0]
+          )
         }
       })
       .catch((error) => {
         console.log(error)
         return
       })
+  })
+
+  ipcMain.on('clearCustomBackground', () => {
+    store.delete('config.value.customBackground')
+    mainWindow.webContents.send('fileSelected', 'customBackgroundLabel', '')
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -715,7 +780,11 @@ ipcMain.on('checkboxClick', (event, id, state) => {
 })
 
 ipcMain.on('openExternal', (event, url) => {
-  if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\/releases(\/latest)?)?\/?$/i.test(String(url)))
+  if (
+    !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\/releases(\/latest)?)?\/?$/i.test(
+      String(url)
+    )
+  )
     return
   shell.openExternal(url)
 })
@@ -734,25 +803,25 @@ ipcMain.on('btnClick', (event, btn) => {
       notify('Info', 'Stopped sending bots.', 'success')
       break
     case 'btnChat':
-      exeAll('chat ' + storeinfo().value.chatMsg)
+      exeAll('chat ' + configValue('chatMsg', ''))
       break
     case 'btnDisconnect':
       exeAll('disconnect')
       break
     case 'btnSetHotbar':
-      exeAll('sethotbar ' + storeinfo().value.hotbarSlot)
+      exeAll('sethotbar ' + configValue('hotbarSlot', 0))
       break
     case 'btnUseheld':
       exeAll('useheld')
       break
     case 'btnWinClickRight':
-      exeAll('winclick ' + storeinfo().value.invSlot + ' 1')
+      exeAll('winclick ' + configValue('invSlot', 0) + ' 1')
       break
     case 'btnWinClickLeft':
-      exeAll('winclick ' + storeinfo().value.invSlot + ' 0')
+      exeAll('winclick ' + configValue('invSlot', 0) + ' 0')
       break
     case 'btnDropSlot':
-      exeAll('drop ' + storeinfo().value.invSlot)
+      exeAll('drop ' + configValue('invSlot', 0))
       break
     case 'btnDropAll':
       exeAll('dropall')
@@ -761,16 +830,16 @@ ipcMain.on('btnClick', (event, btn) => {
       exeAll('closewindow')
       break
     case 'btnStartMove':
-      exeAll('startmove ' + storeinfo().value.moveType)
+      exeAll('startmove ' + configValue('moveType', 'forward'))
       break
     case 'btnStopMove':
-      exeAll('stopmove ' + storeinfo().value.moveType)
+      exeAll('stopmove ' + configValue('moveType', 'forward'))
       break
     case 'btnResetMove':
       exeAll('resetmove')
       break
     case 'btnLook':
-      exeAll('look ' + storeinfo().value.lookDirection)
+      exeAll('look ' + configValue('lookDirection', 'north'))
       break
     case 'btnAfkOn':
       exeAll('afkon')
@@ -779,24 +848,24 @@ ipcMain.on('btnClick', (event, btn) => {
       exeAll('afkoff')
       break
     case 'btnInteractLeft':
-      exeAll('interact left ' + (storeinfo().value.interactCoords || ''))
+      exeAll('interact left ' + configValue('interactCoords', ''))
       break
     case 'btnInteractRight':
-      exeAll('interact right ' + (storeinfo().value.interactCoords || ''))
+      exeAll('interact right ' + configValue('interactCoords', ''))
       break
     case 'btnKillauraOnce':
       exeAll(
         [
           'hit',
-          storeinfo().boolean.targetPlayer,
-          storeinfo().boolean.targetVehicle,
-          storeinfo().boolean.targetMob,
-          storeinfo().boolean.targetAnimal,
-          storeinfo().value.killauraRange,
-          storeinfo().boolean.killauraRotate,
-          storeinfo().value.killauraPriority,
-          storeinfo().value.killauraMaxTargets,
-          storeinfo().boolean.killauraOnlyVisible
+          configBoolean('targetPlayer'),
+          configBoolean('targetVehicle'),
+          configBoolean('targetMob'),
+          configBoolean('targetAnimal'),
+          configValue('killauraRange', 3),
+          configBoolean('killauraRotate'),
+          configValue('killauraPriority', 'nearest'),
+          configValue('killauraMaxTargets', 1),
+          configBoolean('killauraOnlyVisible')
         ].join(' ')
       )
       break
@@ -807,13 +876,13 @@ ipcMain.on('btnClick', (event, btn) => {
       exeAll('nuker stop')
       break
     case 'btnPathfinderRun':
-      exeAll('pathfinder ' + (storeinfo().value.pathFinderCommand || ''))
+      exeAll('pathfinder ' + configValue('pathFinderCommand', ''))
       break
     case 'btnPathfinderStop':
       exeAll('pathfinder stop')
       break
     case 'btnAiModeToggle':
-      exeAll('pathfinder ai ' + (storeinfo().boolean.aiMode ? 'on' : 'off'))
+      exeAll('pathfinder ai ' + (configBoolean('aiMode') ? 'on' : 'off'))
       break
     case 'runScript':
       runScriptForPlayers(playerList)
@@ -823,14 +892,14 @@ ipcMain.on('btnClick', (event, btn) => {
       notify('Info', 'Stopped running scripts.', 'success')
       break
     case 'proxyTestStart':
-      testProxy(storeinfo().value.proxyList)
+      testProxy(configValue('proxyList', ''))
       break
     case 'proxyTestStop':
       stopProxyTest = true
       proxyEvent('', 'stop', '', '')
       break
     case 'proxyScrape':
-      if (storeinfo().value.proxyType === 'none')
+      if (configValue('proxyType', 'none') === 'none')
         return notify('Error', 'Select proxy type', 'error')
       notify('Info', 'Scraping proxies...', 'success')
       setProxy()
@@ -863,7 +932,7 @@ ipcMain.on('btnClick', (event, btn) => {
 })
 
 function setProxy() {
-  scrapeProxy(storeinfo().value.proxyType)
+  scrapeProxy(configValue('proxyType', 'none'))
     .then((result) => {
       proxyEvent('', 'scraped', result, '')
     })
@@ -876,11 +945,12 @@ function setProxy() {
 async function testProxy(list) {
   stopProxyTest = false
   if (!canUseSelectedVersion()) return
-  const server = storeinfo().value.server
+  const server = configValue('server', '')
   const [serverHost, serverPort] = server.split(':')
   if (!serverHost) return notify('Error', 'Invalid server address', 'error')
   if (!list) return notify('Error', 'Please enter proxy list', 'error')
-  if (storeinfo().value.proxyType === 'none') return notify('Error', 'Select proxy type', 'error')
+  if (configValue('proxyType', 'none') === 'none')
+    return notify('Error', 'Select proxy type', 'error')
   notify('Info', 'Testing proxies...', 'success')
   proxyEvent('', 'start', '', '')
   const lines = list.split(/\r?\n/)
@@ -889,15 +959,15 @@ async function testProxy(list) {
     const count = `${i + 1}/${lines.length}`
     const [host, port, username, password] = lines[i].split(':')
     checkProxy(
-      storeinfo().value.proxyType,
+      configValue('proxyType', 'none'),
       host,
       port,
       username,
       password,
       serverHost,
       serverPort || 25565,
-      storeinfo().value.proxyCheckTimeout || 5000,
-      storeinfo().value.version
+      configValue('proxyCheckTimeout', 5000),
+      configValue('version', '')
     )
       .then((result) => {
         proxyEvent(result.proxy, 'success', '', count)
@@ -908,7 +978,7 @@ async function testProxy(list) {
     if (lines.length == i + 1) {
       proxyEvent('', 'stop', '', '')
     }
-    await delay(storeinfo().value.proxyCheckDelay || 100)
+    await delay(configValue('proxyCheckDelay', 100))
   }
 }
 
@@ -1205,8 +1275,8 @@ async function exeAll(command) {
   if (list.length == 0) return notify('Error', 'No bots selected', 'error')
   for (let i = 0; i < list.length; i++) {
     botApi.emit('botEvent', list[i], cmd[0], cmd.slice(1))
-    if (storeinfo().boolean.isLinear) {
-      await delay(storeinfo().value.linearDelay || 100)
+    if (configBoolean('isLinear')) {
+      await delay(configValue('linearDelay', 100))
     }
   }
   sendEvent('Executed', 'chat', 'Script: ' + command)
@@ -1216,12 +1286,12 @@ async function startFile() {
   BrowserWindow.getAllWindows()[0].webContents.send('showBottab')
   const filePath = storeinfo().namefile
   const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/)
-  const count = storeinfo().value.botMax || lines.length
+  const count = configValue('botMax', lines.length) || lines.length
 
   for (let i = 0; i < count; i++) {
     if (stopBot) break
     newBot(getBotInfo(lines[i]))
-    await delay(storeinfo().value.joinDelay || 1000)
+    await delay(configValue('joinDelay', 1000))
   }
 }
 
@@ -1229,12 +1299,13 @@ async function connectBot() {
   stopBot = false
   currentProxy = 0
   proxyUsed = 0
-  const count = storeinfo().value.botMax || 1
+  const count = configValue('botMax', 1) || 1
   if (!(await canUseSelectedVersion())) return
 
-  if (storeinfo().value.nameType === 'file' && storeinfo().namefile) {
+  const nameType = configValue('nameType', 'default')
+  if (nameType === 'file' && storeinfo()?.namefile) {
     BrowserWindow.getAllWindows()[0].webContents.send('showBottab')
-  } else if (storeinfo().value.nameType !== 'file' && storeinfo().value.nameType !== 'default') {
+  } else if (nameType !== 'file' && nameType !== 'default') {
     BrowserWindow.getAllWindows()[0].webContents.send('showBottab')
   }
 
@@ -1243,7 +1314,7 @@ async function connectBot() {
 
     let botInfo
 
-    switch (storeinfo().value.nameType) {
+    switch (nameType) {
       case 'random':
         botInfo = getBotInfo(salt(10))
         break
@@ -1251,47 +1322,50 @@ async function connectBot() {
         botInfo = getBotInfo(genName())
         break
       case 'file':
-        if (!storeinfo().namefile) {
+        if (!storeinfo()?.namefile) {
           notify('Error', 'Please select name file', 'error')
         } else {
           startFile()
         }
         return
       default:
-        if (!storeinfo().value.username) return notify('Error', 'Please insert username', 'error')
+        if (!configValue('username', '')) return notify('Error', 'Please insert username', 'error')
         const username =
-          count == 1 ? storeinfo().value.username : storeinfo().value.username + '_' + i
+          count == 1 ? configValue('username', '') : configValue('username', '') + '_' + i
         botInfo = getBotInfo(username)
         if (i == 0) BrowserWindow.getAllWindows()[0].webContents.send('showBottab')
     }
 
     newBot(botInfo)
-    await delay(storeinfo().value.joinDelay || 1000)
+    await delay(configValue('joinDelay', 1000))
   }
 }
 
 function getBotInfo(botName) {
-  const server = storeinfo().value.server || 'localhost:25565'
+  const server = configValue('server', 'localhost:25565')
   const [serverHost, serverPort] = server.split(':')
   const parsedPort = parseInt(serverPort) || 25565
 
-  const selectedVersion = resolveMinecraftVersion(storeinfo().value.version)
+  const selectedVersion = resolveMinecraftVersion(configValue('version', ''))
+  const savedAuthType = configValue('authType', 'offline')
+  const authType = ['offline', 'microsoft', 'elyby'].includes(savedAuthType)
+    ? savedAuthType
+    : 'offline'
 
   const options = {
     host: serverHost,
     port: parsedPort,
     username: botName,
     version: selectedVersion,
-    auth: storeinfo().value.authType,
+    auth: authType,
     hideErrors: true,
-    joinMessage: storeinfo().value.joinMessage,
-    ...botMode(storeinfo().value.botMode),
-    ...getProxy(storeinfo().value.proxyType)
+    joinMessage: configValue('joinMessage', ''),
+    ...botMode(configValue('botMode', '')),
+    ...getProxy(configValue('proxyType', 'none'))
   }
 
-  if (options.auth === 'easymc') {
-    options.auth = easyMcAuth
-    options.sessionServer = 'https://sessionserver.easymc.io'
+  if (options.auth === 'elyby') {
+    applyElyByAuth(options)
   }
 
   if (storeinfo()?.boolean?.aiMode) options.physicsEnabled = true
@@ -1300,12 +1374,13 @@ function getBotInfo(botName) {
 }
 
 function getProxy(proxyType) {
-  if (proxyType === 'none' || !storeinfo().value.proxyList) return
+  const proxyListValue = configValue('proxyList', '')
+  if (proxyType === 'none' || !proxyListValue) return
 
-  const proxyList = storeinfo().value.proxyList.split(/\r?\n/)
+  const proxyList = proxyListValue.split(/\r?\n/)
   const randomIndex = crypto.randomInt(0, proxyList.length)
 
-  const proxyPerBot = storeinfo().value.proxyPerBot
+  const proxyPerBot = configValue('proxyPerBot', 1)
 
   if (proxyUsed >= proxyPerBot) {
     proxyUsed = 0
@@ -1317,7 +1392,7 @@ function getProxy(proxyType) {
 
   proxyUsed++
 
-  const index = storeinfo().boolean.randomizeOrder ? randomIndex : currentProxy
+  const index = configBoolean('randomizeOrder') ? randomIndex : currentProxy
   const [host, port, username, password] = proxyList[index].split(':')
   return {
     protocol: proxyType,
@@ -1335,18 +1410,14 @@ function newBot(options) {
   options._manualDisconnect = Boolean(options._manualDisconnect)
   options._reconnectAttempts = Number(options._reconnectAttempts || 0)
 
-  if (options.auth === 'easymc') {
-    if (options.easyMcToken?.length !== 20) {
-      return sendEvent(options.username, 'easymcAuth')
-    }
-    options.auth = easyMcAuth
-    options.sessionServer ||= 'https://sessionserver.easymc.io'
+  if (options.auth === 'elyby') {
+    applyElyByAuth(options)
   }
 
   const connectProxy = async (client) => {
     try {
       const socket = await connection(
-        storeinfo().value.proxyType,
+        configValue('proxyType', 'none'),
         options.proxyHost,
         options.proxyPort,
         options.proxyUsername,
@@ -1357,7 +1428,7 @@ function newBot(options) {
       client.setSocket(socket)
       client.emit('connect')
     } catch (error) {
-      if (storeinfo().boolean.proxyLogChat) {
+      if (configBoolean('proxyLogChat')) {
         sendEvent(
           client.username,
           'chat',
@@ -1378,7 +1449,7 @@ function newBot(options) {
     }
   }
 
-  if (storeinfo().value.proxyType !== 'none') {
+  if (configValue('proxyType', 'none') !== 'none') {
     options.connect = connectProxy
   }
 
@@ -1494,44 +1565,72 @@ function newBot(options) {
     lastPlanMessage: '',
     lastDeterministicActionAt: 0,
     failedTargets: new Map(),
-    reportedBlocks: new Set()
+    reportedBlocks: new Set(),
+    actionHistory: []
   }
   const recentServerChats = []
 
-  bot.once('login', () => {
-    connectedBots.add(bot._client.username)
-    sendEvent(bot._client.username, 'login')
-    aiCore.emit('bot.login', { username: bot._client.username, server: options.host })
-    if (storeinfo().boolean.runOnConnect) {
-      stopScript = false
-      startScript(bot._client.username)
+  async function waitForBotReady(timeoutMs = 10000) {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < timeoutMs) {
+      if (
+        bot.entity &&
+        bot.world &&
+        Number.isFinite(Number(bot.health)) &&
+        Number.isFinite(Number(bot.food))
+      ) {
+        return true
+      }
+      await delay(100)
     }
-    if (storeinfo().value.joinMessage) {
-      bot.chat(storeinfo().value.joinMessage)
+    return false
+  }
+
+  bot.once('login', () => {
+    const loginName = bot._client?.username || bot.username || options.username
+    if (loginName) {
+      connectedBots.add(loginName)
+      aiCore.botName = loginName
+    }
+    sendEvent(loginName, 'login')
+    aiCore.emit('bot.login', { username: loginName, server: options.host })
+    if (configBoolean('runOnConnect')) {
+      stopScript = false
+      startScript(loginName)
+    }
+    const joinMessage = configValue('joinMessage', '')
+    if (joinMessage) {
+      bot.chat(joinMessage)
     }
   })
-  bot.once('spawn', () => {
-    aiSpawnReady = true
+  bot.once('spawn', async () => {
+    const ready = await waitForBotReady()
+    aiSpawnReady = ready
     console.log('[MINEFLAYER] spawn event fired', {
       entity: Boolean(bot.entity),
       health: bot.health,
-      worldLoaded: Boolean(bot.world)
+      food: bot.food,
+      worldLoaded: Boolean(bot.world),
+      ready
     })
     options._reconnectAttempts = 0
     bot.loadPlugin(antiafk)
     setupPathfinder()
-    aiCore.emit('bot.spawn', { position: formatPosition(bot.entity.position) })
+    if (ready) aiCore.emit('bot.spawn', { position: formatPosition(bot.entity.position) })
   })
-  bot.on('spawn', () => {
-    aiSpawnReady = true
+  bot.on('spawn', async () => {
+    const ready = await waitForBotReady()
+    aiSpawnReady = ready
     console.log('[MINEFLAYER] spawn event fired', {
       entity: Boolean(bot.entity),
       health: bot.health,
-      worldLoaded: Boolean(bot.world)
+      food: bot.food,
+      worldLoaded: Boolean(bot.world),
+      ready
     })
     setupPathfinder()
-    aiCore.emit('bot.respawn_or_spawn', { position: formatPosition(bot.entity.position) })
-    if (storeinfo().boolean.runOnSpawn) {
+    if (ready) aiCore.emit('bot.respawn_or_spawn', { position: formatPosition(bot.entity.position) })
+    if (ready && configBoolean('runOnSpawn')) {
       stopScript = false
       startScript(bot._client.username)
     }
@@ -1546,6 +1645,9 @@ function newBot(options) {
   })
   bot.on('messagestr', (msg, position) => {
     if (!shouldLogMessageString(position)) return
+    if (configBoolean('aiMode') && !isRecentServerChat(msg, recentServerChats)) {
+      handleAiMessageString(msg)
+    }
     setTimeout(() => {
       if (!isRecentServerChat(msg, recentServerChats)) {
         sendUnparsedServerChat(bot._client.username, msg)
@@ -1576,11 +1678,6 @@ function newBot(options) {
     aiCore.recordMetric('deaths')
     aiCore.recordMetric('failures')
     aiCore.reflect('death occurred; review threat, food, armor and escape strategy')
-    aiCore
-      .reflectWithLLM('death', {
-        position: bot.entity?.position && formatPosition(bot.entity.position)
-      })
-      .catch(() => {})
   })
   bot.once('kicked', (reason) => {
     lastKickReason = formatKickReason(reason)
@@ -1588,8 +1685,13 @@ function newBot(options) {
     connectedBots.delete(botName)
     aiCore.emit('bot.kicked', { reason: lastKickReason })
     aiCore.reflect('kicked from server', { reason: lastKickReason })
-    aiCore.reflectWithLLM('kicked', { reason: lastKickReason }).catch(() => {})
     sendEvent(botName, 'kicked', appendVersionHint(lastKickReason))
+  })
+  bot.on('error', (error) => {
+    const botName = bot._client?.username || options.username
+    const message = appendVersionHint(stringifyConnectionError(error))
+    aiCore.emit('bot.error', { message })
+    sendEvent(botName, 'error', message)
   })
   bot.once('end', (reason) => {
     const botName = bot._client?.username || options.username
@@ -1605,7 +1707,7 @@ function newBot(options) {
 
   bot.on('physicTick', () => {
     const isSelected = playerList.includes(bot._client.username)
-    const aiMode = toBoolean(storeinfo().boolean.aiMode)
+    const aiMode = configBoolean('aiMode')
     if (aiMode && !aiRuntimeEnabled) {
       setAiMode(true)
     }
@@ -1624,11 +1726,12 @@ function newBot(options) {
     if (aiMode) {
       handleAiBodyDuringMovement()
     }
-    if (storeinfo().boolean.killauraToggle && isSelected) {
+    if (!aiMode && configBoolean('killauraToggle') && isSelected) {
       killaura()
     }
     if (
-      (storeinfo().boolean.nukerToggle || nukerActive) &&
+      !aiMode &&
+      (configBoolean('nukerToggle') || nukerActive) &&
       isSelected &&
       !suspendedBotControls.has('nuker')
     ) {
@@ -1656,17 +1759,17 @@ function newBot(options) {
   function killaura() {
     if (hitTimer <= 0) {
       hit(
-        storeinfo().boolean.targetPlayer,
-        storeinfo().boolean.targetVehicle,
-        storeinfo().boolean.targetMob,
-        storeinfo().boolean.targetAnimal,
-        storeinfo().value.killauraRange,
-        storeinfo().boolean.killauraRotate,
-        storeinfo().value.killauraPriority,
-        storeinfo().value.killauraMaxTargets,
-        storeinfo().boolean.killauraOnlyVisible
+        configBoolean('targetPlayer'),
+        configBoolean('targetVehicle'),
+        configBoolean('targetMob'),
+        configBoolean('targetAnimal'),
+        configValue('killauraRange', 3),
+        configBoolean('killauraRotate'),
+        configValue('killauraPriority', 'nearest'),
+        configValue('killauraMaxTargets', 1),
+        configBoolean('killauraOnlyVisible')
       )
-      hitTimer = clampNumber(storeinfo().value.killauraDelay, 1, 60, 10)
+      hitTimer = clampNumber(configValue('killauraDelay', 10), 1, 60, 10)
     } else {
       hitTimer--
     }
@@ -1793,14 +1896,13 @@ function newBot(options) {
   }
 
   function getNukerRanges() {
-    const value = storeinfo().value
     return {
-      up: clampNumber(value.nukerRangeUp, 0, 6, 0),
-      down: clampNumber(value.nukerRangeDown, 0, 6, 0),
-      left: clampNumber(value.nukerRangeLeft, 0, 6, 0),
-      right: clampNumber(value.nukerRangeRight, 0, 6, 0),
-      forward: clampNumber(value.nukerRangeForward, 0, 6, 0),
-      back: clampNumber(value.nukerRangeBack, 0, 6, 0)
+      up: clampNumber(configValue('nukerRangeUp', 0), 0, 6, 0),
+      down: clampNumber(configValue('nukerRangeDown', 0), 0, 6, 0),
+      left: clampNumber(configValue('nukerRangeLeft', 0), 0, 6, 0),
+      right: clampNumber(configValue('nukerRangeRight', 0), 0, 6, 0),
+      forward: clampNumber(configValue('nukerRangeForward', 0), 0, 6, 0),
+      back: clampNumber(configValue('nukerRangeBack', 0), 0, 6, 0)
     }
   }
 
@@ -1808,7 +1910,7 @@ function newBot(options) {
     const yaw = bot.entity.yaw || 0
     return {
       forwardX: Math.round(-Math.sin(yaw)),
-      forwardZ: Math.round(-Math.cos(yaw)),
+      forwardZ: Math.round(Math.cos(yaw)),
       rightX: Math.round(Math.cos(yaw)),
       rightZ: Math.round(-Math.sin(yaw))
     }
@@ -1849,8 +1951,8 @@ function newBot(options) {
 
   function collectNukerBlocks() {
     const ranges = getNukerRanges()
-    const blockList = parseBlockNames(storeinfo().value.nukerBlocks)
-    const targetMode = storeinfo().value.nukerTargetMode || 'blacklist'
+    const blockList = parseBlockNames(configValue('nukerBlocks', ''))
+    const targetMode = configValue('nukerTargetMode', 'blacklist')
     const origin = bot.entity.position.floored()
     const seen = new Set()
     const blocks = []
@@ -1883,7 +1985,7 @@ function newBot(options) {
       return
     }
 
-    const blocksPerTick = clampNumber(storeinfo().value.nukerBlocksPerTick, 1, 8, 1)
+    const blocksPerTick = clampNumber(configValue('nukerBlocksPerTick', 1), 1, 8, 1)
     const blocks = collectNukerBlocks().slice(0, blocksPerTick)
     if (blocks.length === 0) {
       nukerCooldown = 8
@@ -1893,7 +1995,7 @@ function newBot(options) {
     nukerBusy = true
     try {
       for (const block of blocks) {
-        if (toBoolean(storeinfo().boolean.nukerRotate)) {
+        if (configBoolean('nukerRotate')) {
           await bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
         }
         await bot.dig(block, true)
@@ -2000,6 +2102,11 @@ function newBot(options) {
   }
 
   async function aiLookAtTarget(targetName) {
+    const targetText = normalizeCommandText(targetName)
+    if (!targetText || ['unknown', 'nearest', 'nearby', 'around', 'cevre', 'çevre'].includes(targetText)) {
+      return aiLookAtNearestVisible()
+    }
+
     const player = findPlayerEntity(targetName)
     if (player?.position) {
       await bot.lookAt(player.position.offset(0, player.height || 1.6, 0), true)
@@ -2016,8 +2123,30 @@ function newBot(options) {
     return false
   }
 
+  async function aiLookAtNearestVisible() {
+    const entity = Object.values(bot.entities || {})
+      .filter((candidate) => candidate?.position && candidate !== bot.entity)
+      .sort(
+        (a, b) =>
+          bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+      )[0]
+    if (entity?.position) {
+      await bot.lookAt(entity.position.offset(0, entity.height || 1, 0), true)
+      return true
+    }
+
+    const block =
+      buildLocal3DModel(8, 4)?.blocks?.find((entry) => entry.category !== 'block') ||
+      buildLocal3DModel(5, 3)?.blocks?.[0]
+    if (block?.pos) {
+      await bot.lookAt(new Vec3(block.pos.x + 0.5, block.pos.y + 0.5, block.pos.z + 0.5), true)
+      return true
+    }
+    return false
+  }
+
   function handleAiBodyDuringMovement() {
-    if (!toBoolean(storeinfo().boolean.aiMode) || !bot.entity) return
+    if (!configBoolean('aiMode') || !bot.entity) return
 
     const now = Date.now()
     const moving = Boolean(bot.pathfinder?.isMoving?.())
@@ -2080,6 +2209,7 @@ function newBot(options) {
       .trim()
       .toLowerCase()
       .replace(/^minecraft:/, '')
+      .replace(/[-\s]+/g, '_')
   }
 
   function getOreBlockNames() {
@@ -2149,7 +2279,27 @@ function newBot(options) {
         'mangrove_log',
         'cherry_log'
       ],
+      tree: [
+        'oak_log',
+        'spruce_log',
+        'birch_log',
+        'jungle_log',
+        'acacia_log',
+        'dark_oak_log',
+        'mangrove_log',
+        'cherry_log'
+      ],
       wood: [
+        'oak_log',
+        'spruce_log',
+        'birch_log',
+        'jungle_log',
+        'acacia_log',
+        'dark_oak_log',
+        'mangrove_log',
+        'cherry_log'
+      ],
+      odun: [
         'oak_log',
         'spruce_log',
         'birch_log',
@@ -2210,6 +2360,83 @@ function newBot(options) {
       .slice(0, clampNumber(count, 1, 8, 1))
 
     return { names, blocks }
+  }
+
+  function categorizeBlockForGemini(name) {
+    if (/_log$|_stem$|_wood$|hyphae$/.test(name)) return 'tree_trunk'
+    if (/_leaves$|wart_block$/.test(name)) return 'tree_leaves'
+    if (/_ore$|ancient_debris/.test(name)) return 'ore'
+    if (/stone|deepslate|tuff|andesite|granite|diorite|cobblestone/.test(name)) return 'stone'
+    if (/grass_block|dirt|podzol|mycelium|mud|sand|gravel|clay/.test(name)) return 'ground'
+    if (/water|lava/.test(name)) return 'fluid'
+    if (/crafting_table|furnace|chest|barrel|bed$/.test(name)) return 'utility'
+    if (/crop|wheat|carrot|potato|beetroot|melon|pumpkin|cocoa/.test(name)) return 'food_or_crop'
+    if (/flower|grass|fern|sapling|mushroom/.test(name)) return 'plant'
+    return 'block'
+  }
+
+  function buildLocal3DModel(radius = 10, vertical = 7) {
+    if (!bot.entity?.position) return undefined
+    const origin = bot.entity.position.floored()
+    const blocks = []
+    const categoryCounts = {}
+    const nearestByCategory = {}
+
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        for (let dy = -vertical; dy <= vertical; dy++) {
+          const position = origin.offset(dx, dy, dz)
+          const block = bot.blockAt(position)
+          if (
+            !block ||
+            block.name === 'air' ||
+            block.name === 'cave_air' ||
+            block.name === 'void_air'
+          )
+            continue
+
+          const category = categorizeBlockForGemini(block.name)
+          const distance = Number(bot.entity.position.distanceTo(block.position).toFixed(1))
+          categoryCounts[category] = (categoryCounts[category] || 0) + 1
+
+          const entry = {
+            name: block.name,
+            category,
+            rel: { x: dx, y: dy, z: dz },
+            pos: { x: block.position.x, y: block.position.y, z: block.position.z },
+            distance
+          }
+
+          if (!nearestByCategory[category] || distance < nearestByCategory[category].distance) {
+            nearestByCategory[category] = entry
+          }
+
+          const important =
+            category !== 'block' ||
+            distance <= 4 ||
+            /planks|glass|door|torch|ladder|rail/.test(block.name)
+          if (important) blocks.push(entry)
+        }
+      }
+    }
+
+    blocks.sort((a, b) => a.distance - b.distance)
+    const treeBlocks = blocks.filter(
+      (block) => block.category === 'tree_trunk' || block.category === 'tree_leaves'
+    )
+    const ores = blocks.filter((block) => block.category === 'ore')
+
+    return {
+      origin: { x: origin.x, y: origin.y, z: origin.z },
+      radius,
+      vertical,
+      note: 'Compact 3D model of loaded blocks around the bot. Use categories and coordinates to interpret natural objects like trees instead of literal name matching.',
+      categoryCounts,
+      nearestByCategory,
+      likelyTrees: treeBlocks.slice(0, 24),
+      visibleOres: ores.slice(0, 20),
+      blocks: blocks.slice(0, 220)
+    }
   }
 
   function describePlayerPosition(playerName) {
@@ -2304,6 +2531,70 @@ function newBot(options) {
         stopPathfinderTask(`Pathfinder: reached ${resolvedName}`)
       }
     }, 500)
+  }
+
+  async function comeToPlayerIntent(playerName, distance = 2, options = {}) {
+    if (!ensurePathfinder()) return { ok: false, reason: 'pathfinder_not_ready' }
+    const resolvedName = resolvePlayerName(playerName)
+    const nearDistance = clampNumber(distance, 1, 8, 2)
+    const timeoutMs = clampNumber(options.timeoutMs, 3000, 120000, 45000)
+    const startedAt = Date.now()
+    let lastTargetPosition
+    let lastGoalAt = 0
+
+    clearInterval(playerGotoTimer)
+    pathfinderBusy = true
+    aiMemory.currentTask = `come_to_player:${resolvedName}`
+    sendEvent(bot._client.username, 'chat', `Skill: coming to ${resolvedName}`)
+
+    try {
+      while (Date.now() - startedAt < timeoutMs) {
+        const entity = findPlayerEntity(resolvedName)
+        if (!entity?.position) {
+          return { ok: false, reason: `player_not_visible:${resolvedName}`, player: resolvedName }
+        }
+
+        const distanceToPlayer = bot.entity.position.distanceTo(entity.position)
+        if (distanceToPlayer <= nearDistance + 0.8) {
+          stopPathfinderTask(`Skill: reached ${resolvedName}`)
+          return { ok: true, player: resolvedName, distance: distanceToPlayer }
+        }
+
+        const targetMoved =
+          !lastTargetPosition || entity.position.distanceTo(lastTargetPosition) > 1.2
+        if (targetMoved || Date.now() - lastGoalAt > 2500) {
+          lastTargetPosition = entity.position.clone()
+          lastGoalAt = Date.now()
+          bot.pathfinder.setGoal(
+            new goals.GoalFollow(entity, nearDistance),
+            true
+          )
+        }
+
+        await delay(350)
+      }
+      return { ok: false, reason: 'come_to_player_timeout', player: resolvedName }
+    } finally {
+      pathfinderBusy = false
+      aiMemory.currentTask = 'idle'
+    }
+  }
+
+  async function protectPlayerIntent(playerName) {
+    const resolvedName = resolvePlayerName(playerName)
+    const player = findPlayerEntity(resolvedName)
+    if (!player?.position) return { ok: false, reason: `player_not_visible:${resolvedName}` }
+
+    const threat = Object.values(bot.entities || {})
+      .filter((entity) => entity?.position && entity !== bot.entity)
+      .filter((entity) => {
+        const hostile = ['zombie', 'skeleton', 'creeper', 'spider', 'drowned', 'husk', 'witch']
+        return hostile.includes(entity.name) && entity.position.distanceTo(player.position) < 10
+      })
+      .sort((a, b) => a.position.distanceTo(player.position) - b.position.distanceTo(player.position))[0]
+
+    if (threat) return huntEntity(threat.name)
+    return comeToPlayerIntent(resolvedName, 3, { timeoutMs: 20000 })
   }
 
   async function equipBestToolForBlock(block) {
@@ -2433,11 +2724,11 @@ function newBot(options) {
     }
     if (['front', 'on', 'ileri', 'ön', 'Ã¶n'].includes(firstArg)) {
       const yaw = bot.entity.yaw || 0
-      return bot.entity.position.offset(-Math.sin(yaw), 0, -Math.cos(yaw)).floored()
+      return bot.entity.position.offset(-Math.sin(yaw), 0, Math.cos(yaw)).floored()
     }
     if (['back', 'geri'].includes(firstArg)) {
       const yaw = bot.entity.yaw || 0
-      return bot.entity.position.offset(Math.sin(yaw), 0, Math.cos(yaw)).floored()
+      return bot.entity.position.offset(Math.sin(yaw), 0, -Math.cos(yaw)).floored()
     }
 
     return parsePositionArgs(
@@ -2675,11 +2966,186 @@ function newBot(options) {
     }
   }
 
+  async function mineBlockAtPosition(x, y, z) {
+    const position = new Vec3(Number(x), Number(y), Number(z))
+    if (![position.x, position.y, position.z].every(Number.isFinite)) {
+      return { ok: false, reason: 'invalid_block_position' }
+    }
+    const block = bot.blockAt(position)
+    if (
+      !block ||
+      block.name === 'air' ||
+      block.name === 'cave_air' ||
+      block.name === 'void_air'
+    ) {
+      return { ok: false, reason: 'target_block_not_loaded' }
+    }
+    const result = await digBlockAutonomously(block)
+    return {
+      ok: Boolean(result?.mined),
+      reason: result?.reason,
+      block: result?.block?.name || block.name,
+      position: formatPosition(block.position)
+    }
+  }
+
+  function isGiveAllTarget(target) {
+    const normalizedTarget = normalizeBlockName(target)
+    return [
+      'all',
+      'everything',
+      'hepsi',
+      'hepsini',
+      'tum',
+      'tumu',
+      'tüm',
+      'tümü',
+      'hersey',
+      'herseyi',
+      'herşey',
+      'herşeyi'
+    ].includes(normalizedTarget)
+  }
+
+  function addItemAliases(names, normalizedTarget) {
+    const swordNames = [
+      'wooden_sword',
+      'stone_sword',
+      'iron_sword',
+      'golden_sword',
+      'diamond_sword',
+      'netherite_sword'
+    ]
+    const dirtNames = ['dirt', 'coarse_dirt', 'rooted_dirt', 'grass_block']
+    const aliases = {
+      sword: swordNames,
+      kilic: swordNames,
+      kilici: swordNames,
+      kılıç: swordNames,
+      kılıcı: swordNames,
+      dirt: dirtNames,
+      ground: dirtNames,
+      soil: dirtNames,
+      toprak: dirtNames,
+      topragi: dirtNames,
+      toprağı: dirtNames,
+      craftingtable: ['crafting_table'],
+      crafttable: ['crafting_table'],
+      masa: ['crafting_table'],
+      kazma: ['wooden_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'golden_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe'],
+      pickaxe: ['wooden_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'golden_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe']
+    }
+    ;(aliases[normalizedTarget] || []).forEach((name) => names.add(name))
+  }
+
+  function normalizeSearchKey(value) {
+    return normalizeBlockName(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ı/g, 'i')
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+  }
+
+  function searchTokens(value) {
+    return normalizeSearchKey(value).split('_').filter(Boolean)
+  }
+
+  function trimTurkishItemSuffixes(value) {
+    const key = normalizeSearchKey(value)
+    const suffixes = ['leri', 'lari', 'sini', 'sını', 'ini', 'ını', 'unu', 'ünü', 'yi', 'yı', 'yu', 'yü', 'i', 'ı', 'u', 'ü']
+    for (const suffix of suffixes) {
+      if (key.length > suffix.length + 2 && key.endsWith(normalizeSearchKey(suffix))) {
+        return key.slice(0, -normalizeSearchKey(suffix).length)
+      }
+    }
+    return key
+  }
+
+  function registryItemEntries() {
+    const byName = bot.registry?.itemsByName || {}
+    return Object.values(byName)
+  }
+
+  function registryBlockEntries() {
+    const byName = bot.registry?.blocksByName || {}
+    return Object.values(byName)
+  }
+
+  function registryEntryMatchesQuery(entry, query) {
+    if (!entry) return false
+    const queryKeys = Array.from(new Set([normalizeSearchKey(query), trimTurkishItemSuffixes(query)]))
+      .filter(Boolean)
+    const queryTokenSets = queryKeys.map((key) => key.split('_').filter(Boolean))
+    const candidateKeys = [
+      entry.name,
+      entry.displayName,
+      entry.translationKey,
+      entry.type
+    ]
+      .map(normalizeSearchKey)
+      .filter(Boolean)
+
+    return candidateKeys.some((candidateKey) => {
+      const candidateTokens = candidateKey.split('_').filter(Boolean)
+      return queryKeys.some((queryKey, index) => {
+        if (candidateKey === queryKey) return true
+        const queryTokens = queryTokenSets[index] || []
+        if (queryTokens.length === 1) return candidateTokens.includes(queryTokens[0])
+        return queryTokens.every((token) => candidateTokens.includes(token))
+      })
+    })
+  }
+
+  function addRegistryItemAliases(names, normalizedTarget) {
+    for (const item of registryItemEntries()) {
+      if (registryEntryMatchesQuery(item, normalizedTarget)) names.add(item.name)
+    }
+    for (const block of registryBlockEntries()) {
+      if (registryEntryMatchesQuery(block, normalizedTarget)) names.add(block.name)
+    }
+  }
+
+  function itemNameMatchesAny(itemName, names) {
+    const itemKey = normalizeSearchKey(itemName)
+    const itemTokens = searchTokens(itemName)
+    return Array.from(names).some((name) => {
+      const targetKey = normalizeSearchKey(name)
+      if (!targetKey) return false
+      if (itemKey === targetKey) return true
+      const targetTokens = targetKey.split('_').filter(Boolean)
+      if (targetTokens.length === 1) return itemTokens.includes(targetTokens[0])
+      return targetTokens.every((token) => itemTokens.includes(token))
+    })
+  }
+
+  function itemTargetPriority(itemName, target) {
+    const itemKey = normalizeSearchKey(itemName)
+    const targetKey = normalizeSearchKey(target)
+    const trimmedTargetKey = trimTurkishItemSuffixes(target)
+    if (itemKey === targetKey || itemKey === trimmedTargetKey) return 0
+    if (resolveBlockNames(target).map(normalizeSearchKey).includes(itemKey)) return 1
+    if (registryItemEntries().some((item) => item.name === itemName && registryEntryMatchesQuery(item, target))) {
+      return 2
+    }
+    if (itemKey.endsWith(`_${targetKey}`) || itemKey.endsWith(`_${trimmedTargetKey}`)) return 3
+    return 4
+  }
+
   function itemMatchesTarget(itemName, target) {
     const normalizedTarget = normalizeBlockName(target)
-    if (!normalizedTarget) return true
+    if (!normalizedTarget) return false
+    if (isGiveAllTarget(normalizedTarget)) return true
     const names = new Set(resolveBlockNames(normalizedTarget))
     names.add(normalizedTarget)
+    addItemAliases(names, normalizedTarget)
+    addRegistryItemAliases(names, normalizedTarget)
     if (normalizedTarget === 'wood' || normalizedTarget === 'agac') {
       ;[
         'oak_log',
@@ -2717,7 +3183,7 @@ function newBot(options) {
     if (normalizedTarget === 'ancient' || normalizedTarget === 'netherite') {
       names.add('ancient_debris')
     }
-    return Array.from(names).some((name) => itemName === name || itemName.includes(name))
+    return itemNameMatchesAny(itemName, names)
   }
 
   function inventoryCount(target) {
@@ -3092,6 +3558,39 @@ function newBot(options) {
       } catch {
         // Try another side of the block below the bot.
       }
+    }
+  }
+
+  async function makeCraftingTableForPlayer(playerName, wantedLogs = 3) {
+    const targetLogs = clampNumber(wantedLogs, 1, 16, 3)
+    const logNames = getLogItemNames()
+    const plankNames = getPlankItemNames()
+    const missingLogs = Math.max(targetLogs - inventoryCountByNames(logNames), 0)
+
+    if (missingLogs > 0) {
+      const mined = await mineNearestBlocks('wood', missingLogs, 96)
+      if (!mined?.ok) return mined
+    }
+
+    if (inventoryCountByNames(plankNames) < 4) {
+      const craftedPlanks = await craftItemByNames(plankNames, 4, { target: 'planks' })
+      if (!craftedPlanks?.ok && inventoryCountByNames(plankNames) < 4) return craftedPlanks
+    }
+
+    if (!getInventoryItem('crafting_table')) {
+      const craftedTable = await craftItemByNames(['crafting_table'], 1)
+      if (!craftedTable?.ok && !getInventoryItem('crafting_table')) return craftedTable
+    }
+
+    if (playerName) {
+      await tossInventoryToPlayer(playerName, 'crafting_table')
+    }
+
+    return {
+      ok: true,
+      item: 'crafting_table',
+      logs: inventoryCountByNames(logNames),
+      planks: inventoryCountByNames(plankNames)
     }
   }
 
@@ -3708,7 +4207,10 @@ function newBot(options) {
         })),
       nearbyEntities: Object.values(bot.entities || {})
         .filter((entity) => entity?.position && entity !== bot.entity)
-        .sort((a, b) => bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position))
+        .sort(
+          (a, b) =>
+            bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+        )
         .slice(0, 12)
         .map((entity) => ({
           name: entity.username || entity.name || entity.type,
@@ -3716,12 +4218,15 @@ function newBot(options) {
           distance: Number(bot.entity.position.distanceTo(entity.position).toFixed(1)),
           position: formatPosition(entity.position)
         })),
+      local3dModel: buildLocal3DModel(10, 7),
       pathfinderMoving: Boolean(bot.pathfinder?.isMoving?.())
     }
   }
 
   async function executeGeminiAction(action, username) {
     if (!action || typeof action !== 'object') return { ok: false, reason: 'empty_action' }
+    const routedIntent = await executeIntentAction(action, username)
+    if (routedIntent) return routedIntent
     const tool = String(action.tool || '').toLowerCase()
     const args = action.args && typeof action.args === 'object' ? action.args : {}
     aiCore.debug.currentTask = action
@@ -3749,18 +4254,41 @@ function newBot(options) {
           { near: clampNumber(near, 1, 8, 2), timeoutMs: 30000 }
         )
       }
+      case 'come':
+      case 'come_to_me':
+      case 'come_to_player':
+      case 'go_to_player':
+        return comeToPlayerIntent(args.player || args.name || args.target || username, args.near || 2)
+      case 'follow':
+      case 'follow_entity':
+      case 'follow_user':
       case 'follow_player': {
-        const name = args.name || username
-        const entity = findPlayerEntity(name)
-        if (!entity) return { ok: false, reason: `player_not_visible:${name}` }
-        bot.pathfinder.setGoal(new goals.GoalFollow(entity, clampNumber(args.near, 1, 8, 2)), true)
-        return { ok: true }
+        return comeToPlayerIntent(args.name || args.player || args.target || username, args.near || 2, {
+          timeoutMs: 60000
+        })
       }
+      case 'protect':
+      case 'protect_player':
+      case 'guard_player':
+        return protectPlayerIntent(args.player || args.name || args.target || username)
+      case 'gather_wood':
+        return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
+      case 'gather_resource':
+        return mineNearestBlocks(args.resource || args.target || args.block || 'wood', args.count || 1, args.range || 96)
+      case 'explore_cave':
+        return exploreForObjective(args.reason || 'find cave')
       case 'stop':
         stopPathfinderTask('Gemini: stopped')
         return { ok: true }
       case 'mine_block':
-        return mineNearestBlocks(args.block || args.name || 'stone', args.count || 1, args.range || 64)
+        if ([args.x, args.y, args.z].every((value) => Number.isFinite(Number(value)))) {
+          return mineBlockAtPosition(args.x, args.y, args.z)
+        }
+        return mineNearestBlocks(
+          args.block || args.name || args.target || 'stone',
+          args.count || 1,
+          args.range || 64
+        )
       case 'place_block':
         return placeBlockAutonomously(args.item, args.where || args.placeArgs || ['front'])
       case 'craft_item':
@@ -3776,14 +4304,21 @@ function newBot(options) {
         return eatIfHungry()
       case 'attack_entity':
         return huntEntity(args.name || args.entity)
-      case 'look_at':
-        return (await aiLookAtTarget(args.name || args.target)) || (await aiLook(args.direction || args.target))
+      case 'look_at': {
+        const looked =
+          (await aiLookAtTarget(args.name || args.target)) ||
+          (await aiLook(args.direction || args.target))
+        return looked ? { ok: true } : { ok: false, reason: 'look_target_not_found' }
+      }
       case 'use_item':
         mobility.rightClick()
         return { ok: true }
       case 'give_items':
-        await tossInventoryToPlayer(args.player || username, args.item)
-        return { ok: true }
+        return tossInventoryToPlayer(args.player || username, args.item || args.target || args.name)
+      case 'make_crafting_table_for_player':
+      case 'crafting_table_for_player':
+      case 'make_crafting_table':
+        return makeCraftingTableForPlayer(args.player || username, args.logs || args.count || 3)
       case 'status':
         sendAiStatus()
         return { ok: true }
@@ -3801,26 +4336,342 @@ function newBot(options) {
     }
   }
 
-  async function askGeminiFromChat(username, message) {
-    const inputKey = `${options.host || ''}:${bot.username}:${username}:${normalizeCommandText(message)}`
-    if (!rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
+  async function executeIntentAction(action, username) {
+    const intent = String(action.intent || action.tool || '').toLowerCase()
+    const args = action.args && typeof action.args === 'object' ? action.args : {}
+    const target = action.target || args.target
+    const player = args.player || (target === 'speaker' ? username : target) || username
+
+    switch (intent) {
+      case 'come_to_player':
+      case 'come_to_me':
+      case 'go_to_player':
+        return comeToPlayerIntent(player, args.near || 2)
+      case 'follow_player':
+      case 'follow':
+        return comeToPlayerIntent(player, args.near || 2, { timeoutMs: 60000 })
+      case 'protect_player':
+      case 'protect':
+      case 'guard_player':
+        return protectPlayerIntent(player)
+      case 'gather_wood':
+        return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
+      case 'gather_resource':
+      case 'obtain_resource':
+        return mineNearestBlocks(args.resource || target || args.block || 'wood', args.count || 1, args.range || 96)
+      case 'explore_cave':
+        return exploreForObjective(args.reason || 'find cave')
+      case 'build_house':
+        return { ok: false, reason: 'build_house_skill_not_ready' }
+      case 'obtain_diamond':
+        return mineNearestBlocks('diamond', args.count || 1, args.range || 96)
+      default:
+        return undefined
+    }
+  }
+
+  async function executeActionClosedLoop(action, username, goalMessage, options = {}) {
+    const maxAttempts = clampNumber(options.maxAttempts, 1, 4, 3)
+    const actionKey = `${action?.tool || 'unknown'}:${JSON.stringify(action?.args || {})}`
+    let lastResult = { ok: false, reason: 'not_started' }
+    let recoveryUsed
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const before = buildActionFeedbackSnapshot()
+      setExecutionStateForAction(action, attempt > 1 ? 'RECOVERING' : undefined)
+      const candidate = attempt === 1 ? action : buildRecoveryAction(action, lastResult, attempt, username)
+      recoveryUsed = attempt === 1 ? recoveryUsed : candidate
+
+      if (!candidate) {
+        lastResult = { ok: false, reason: 'no_recovery_strategy' }
+        break
+      }
+
+      if (attempt > 1) {
+        sendEvent(
+          bot._client.username,
+          'chat',
+          `AI recovery: ${candidate.tool} after ${lastResult.reason || 'failure'}`
+        )
+      }
+
+      const rawResult = await executeGeminiAction(candidate, username)
+      const after = buildActionFeedbackSnapshot()
+      const verification = verifyActionOutcome(candidate, rawResult, before, after)
+      lastResult = {
+        ...rawResult,
+        ok: verification.ok,
+        reason: verification.ok ? rawResult?.reason : verification.reason || rawResult?.reason,
+        verification,
+        attempt,
+        action: candidate
+      }
+      rememberActionOutcome({
+        goal: goalMessage,
+        originalAction: action,
+        action: candidate,
+        attempt,
+        before,
+        after,
+        outcome: lastResult,
+        recoveryUsed
+      })
+
+      if (verification.ok) {
+        aiCore.memory.rememberSuccess('action_verified', {
+          tool: candidate.tool,
+          attempts: attempt,
+          goal: goalMessage
+        })
+        return lastResult
+      }
+
+      aiCore.memory.rememberFailure('action_unverified', {
+        key: actionKey,
+        tool: candidate.tool,
+        reason: lastResult.reason,
+        attempt,
+        goal: goalMessage
+      })
+
+      if (isCriticalState(after)) {
+        const criticalRecovery = buildCriticalRecoveryAction(after)
+        if (criticalRecovery) {
+          await executeGeminiAction(criticalRecovery, username).catch(() => undefined)
+        }
+      }
+    }
+
+    aiCore.reflect('action failed after closed-loop retries', {
+      action,
+      reason: lastResult.reason,
+      goal: goalMessage
+    })
+    return lastResult
+  }
+
+  function buildActionFeedbackSnapshot() {
+    return {
+      position: bot.entity?.position && formatPosition(bot.entity.position),
+      rawPosition: bot.entity?.position && {
+        x: bot.entity.position.x,
+        y: bot.entity.position.y,
+        z: bot.entity.position.z
+      },
+      health: Math.round(bot.health || 0),
+      food: bot.food,
+      inventory: bot.inventory.items().map(({ name, count }) => ({ name, count })),
+      visibleBlocks: buildLocal3DModel(8, 5)?.nearestByCategory || {},
+      visibleEntities: Object.values(bot.entities || {})
+        .filter((entity) => entity?.position && entity !== bot.entity)
+        .slice(0, 10)
+        .map((entity) => ({
+          name: entity.username || entity.name || entity.type,
+          type: entity.type,
+          distance: Number(bot.entity.position.distanceTo(entity.position).toFixed(1))
+        }))
+    }
+  }
+
+  function verifyActionOutcome(action, result, before, after) {
+    if (result?.ok === false && !isSoftRecoverableReason(result.reason)) {
+      return { ok: false, reason: result.reason || 'executor_failed' }
+    }
+
+    const tool = String(action?.tool || '').toLowerCase()
+    const args = action?.args || {}
+    if (['say', 'chat', 'status', 'inventory', 'use_item', 'stop', 'look_at'].includes(tool)) {
+      return { ok: result?.ok !== false, reason: result?.reason }
+    }
+    if (tool === 'move_to') {
+      const target = { x: Number(args.x), y: Number(args.y), z: Number(args.z) }
+      if (![target.x, target.y, target.z].every(Number.isFinite)) {
+        return { ok: false, reason: 'invalid_move_target' }
+      }
+      const distance = distanceBetweenRaw(after.rawPosition, target)
+      return distance < clampNumber(args.near, 1, 8, 2) + 0.8
+        ? { ok: true, distance }
+        : { ok: false, reason: `move_not_reached:${distance.toFixed(1)}`, distance }
+    }
+    if (tool.includes('follow') || tool.includes('come_to_player')) {
+      const entity = findPlayerEntity(args.name || args.player || args.target)
+      const distance = entity?.position ? bot.entity.position.distanceTo(entity.position) : Infinity
+      return distance <= clampNumber(args.near, 1, 8, 2) + 1.5 || bot.pathfinder?.isMoving?.()
+        ? { ok: true, distance }
+        : { ok: false, reason: 'follow_target_not_reached', distance }
+    }
+    if (tool === 'mine_block') {
+      const target = args.block || args.name || args.target
+      const inventoryChanged = inventoryTotal(after.inventory) > inventoryTotal(before.inventory)
+      const hasTarget = target ? inventoryContainsTarget(after.inventory, target) : inventoryChanged
+      return result?.ok || hasTarget || inventoryChanged
+        ? { ok: true }
+        : { ok: false, reason: result?.reason || 'mine_no_inventory_gain' }
+    }
+    if (tool === 'craft_item') {
+      const item = args.item
+      return item && inventoryContainsTarget(after.inventory, item)
+        ? { ok: true }
+        : { ok: Boolean(result?.ok), reason: result?.reason || 'craft_item_missing' }
+    }
+    if (tool === 'make_crafting_table_for_player' || tool === 'make_crafting_table') {
+      return result?.ok || inventoryContainsTarget(after.inventory, 'crafting_table')
+        ? { ok: true }
+        : { ok: false, reason: result?.reason || 'crafting_table_not_verified' }
+    }
+    if (tool === 'place_block') {
+      return result?.ok ? { ok: true } : { ok: false, reason: result?.reason || 'place_failed' }
+    }
+    if (tool === 'eat_food') {
+      return after.food > before.food || result?.ok ? { ok: true } : { ok: false, reason: 'food_not_improved' }
+    }
+    if (tool === 'attack_entity') {
+      return result?.ok ? { ok: true } : { ok: false, reason: result?.reason || 'attack_failed' }
+    }
+    return { ok: result?.ok !== false, reason: result?.reason }
+  }
+
+  function buildRecoveryAction(action, result, attempt, username) {
+    const tool = String(action?.tool || '').toLowerCase()
+    const args = action?.args || {}
+    const reason = String(result?.reason || '').toLowerCase()
+
+    if (reason.includes('missing_logs') || reason.includes('wood') || reason.includes('log')) {
+      return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover missing wood' }
+    }
+    if (reason.includes('crafting_table') || reason.includes('missing crafting')) {
+      return { tool: 'make_crafting_table_for_player', args: { player: username, logs: 3 }, reason: 'recover missing crafting table' }
+    }
+    if (reason.includes('player_not_visible')) {
+      return undefined
+    }
+    if (tool === 'move_to' || reason.includes('path') || reason.includes('not_reached') || reason.includes('timeout')) {
+      return attempt === 2
+        ? undefined
+        : { tool: 'move_to', args: { ...args, near: clampNumber(args.near, 2, 8, 3) }, reason: 'retry movement with wider arrival radius' }
+    }
+    if (tool === 'mine_block' || reason.includes('unreachable')) {
+      return attempt === 2
+        ? { tool: 'look_at', args: { target: args.target || args.block || 'nearest' }, reason: 're-scan target before mining retry' }
+        : { tool: 'mine_block', args: { ...args, range: clampNumber(args.range, 32, 128, 96) }, reason: 'retry mining with wider search' }
+    }
+    if (tool === 'craft_item' || reason.includes('missing_material') || reason.includes('no_recipe')) {
+      return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover crafting materials' }
+    }
+    return undefined
+  }
+
+  function rememberActionOutcome(record) {
+    aiMemory.actionHistory.push({
+      ...record,
+      at: Date.now()
+    })
+    if (aiMemory.actionHistory.length > 80) aiMemory.actionHistory.shift()
+    aiCore.memory.state.actions.push({
+      action: record.action,
+      outcome: record.outcome,
+      recoveryUsed: record.recoveryUsed,
+      at: Date.now()
+    })
+    if (aiCore.memory.state.actions.length > 120) aiCore.memory.state.actions.shift()
+    aiCore.memory.setWorking('recentActions', aiMemory.actionHistory.slice(-12))
+  }
+
+  function setExecutionStateForAction(action, override) {
+    if (override) {
+      aiCore.debug.executionState = override
+      return
+    }
+    const tool = String(action?.tool || '').toLowerCase()
+    if (tool === 'move_to' || tool.includes('follow') || tool.includes('come_to_player')) aiCore.debug.executionState = 'MOVING'
+    else if (tool === 'mine_block') aiCore.debug.executionState = 'MINING'
+    else if (tool === 'place_block' || tool === 'craft_item') aiCore.debug.executionState = 'BUILDING'
+    else if (tool === 'attack_entity') aiCore.debug.executionState = 'COMBAT'
+    else if (tool === 'explore') aiCore.debug.executionState = 'EXPLORING'
+    else aiCore.debug.executionState = 'ACTING'
+  }
+
+  function distanceBetweenRaw(a, b) {
+    if (!a || !b) return Infinity
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
+  }
+
+  function inventoryTotal(items) {
+    return (items || []).reduce((total, item) => total + Number(item.count || 0), 0)
+  }
+
+  function inventoryContainsTarget(items, target) {
+    return (items || []).some((item) => itemMatchesTarget(item.name, target))
+  }
+
+  function isSoftRecoverableReason(reason) {
+    return /path|timeout|unreachable|missing|no_recipe|not_found|not_reached|blocked|target/i.test(String(reason || ''))
+  }
+
+  function isCriticalState(snapshot) {
+    return Number(snapshot.health || 0) <= 8 || Number(snapshot.food || 20) <= 4
+  }
+
+  function buildCriticalRecoveryAction(snapshot) {
+    if (Number(snapshot.food || 20) <= 4) return { tool: 'eat_food', args: {}, reason: 'critical hunger recovery' }
+    if (Number(snapshot.health || 0) <= 8) return { tool: 'explore', args: { reason: 'escape danger and recover health' }, reason: 'critical health recovery' }
+    return undefined
+  }
+
+  function prepareGeminiCommand() {
+    clearInterval(playerGotoTimer)
+    playerGotoTimer = undefined
+    pathfinderBusy = false
+    bot.pathfinder?.setGoal?.(null)
+    bot.pathfinder?.stop?.()
+    resetAiBody()
+    aiMemory.currentTask = 'gemini_control'
+  }
+
+  async function askGeminiFromChat(username, message, optionsOverride = {}) {
+    const allowActions = optionsOverride.allowActions !== false
+    const inputKey = `${options.host || ''}:${getPrimaryBotName()}:${normalizeCommandText(message)}`
+    if (!optionsOverride.bypassDedupe && !rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
       console.log('[GEMINI] Duplicate chat input ignored', { bot: bot.username, username, message })
       return
     }
     if (aiThinkBusy) {
+      if (!allowActions) {
+        bot.chat(optionsOverride.defaultReply || 'Buradayim, onceki komutu bitiriyorum.')
+        return
+      }
       sendEvent(bot._client.username, 'chat', 'Gemini busy: onceki komut bitiyor')
       return
     }
     aiThinkBusy = true
     try {
-      const decision = await aiCore.decideFromChat({
+      prepareGeminiCommand()
+      const observation = buildGeminiObservation(username)
+      let decision = await aiCore.decideFromChat({
         username,
         message,
-        observation: buildGeminiObservation(username)
+        observation
       })
       if (!decision.ok) {
         sendEvent(bot._client.username, 'chat', `Gemini error: ${decision.error}`)
         return
+      }
+      let actions = allowActions ? (Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []) : []
+      const actionableCommand = isActionableChatCommand(message)
+      if (allowActions && actionableCommand && actions.length === 0) {
+        const repaired = await aiCore.repairEmptyAction({
+          username,
+          message,
+          observation,
+          previous: decision.raw || decision.reply || {}
+        })
+        if (repaired.ok) {
+          decision = repaired
+          actions = Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []
+        }
+      }
+      if (decision.intent) {
+        sendEvent(bot._client.username, 'chat', `Gemini intent: ${String(decision.intent).slice(0, 180)}`)
       }
       if (decision.reply) {
         const reply = String(decision.reply).slice(0, 240)
@@ -3829,9 +4680,32 @@ function newBot(options) {
           bot.chat(reply)
         }
       }
-      const actions = decision.actions.slice(0, 5)
+      actions = allowActions
+        ? normalizeGeminiActions(actions, username, message).filter((action) =>
+            isActionAllowedForMessage(action, message)
+          ).slice(0, 5)
+        : []
+      if (actions.length === 0) {
+        if (!decision.reply && optionsOverride.defaultReply) bot.chat(optionsOverride.defaultReply)
+        else if (allowActions) {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            decision.reply
+              ? 'Gemini: replied without tool action'
+              : 'Gemini: no tool action returned'
+          )
+        }
+      }
       for (const action of actions) {
-        const result = await executeGeminiAction(action, username)
+        if (action.reason) {
+          sendEvent(
+            bot._client.username,
+            'chat',
+            `Gemini action: ${action.tool} - ${String(action.reason).slice(0, 160)}`
+          )
+        }
+        const result = await executeActionClosedLoop(action, username, message)
         aiCore.recordMetric(result?.ok ? 'actions' : 'failures')
         if (!result?.ok) {
           sendEvent(
@@ -3852,6 +4726,446 @@ function newBot(options) {
     }
   }
 
+  function normalizeGeminiActions(actions, username, message) {
+    const normalizedActions = (Array.isArray(actions) ? actions.filter(Boolean) : []).map((action) =>
+      normalizeIntentAction(action, username, message)
+    )
+    const explicitSkill = inferExplicitSkillAction(username, message)
+    if (explicitSkill && shouldPreferSkillAction(normalizedActions, explicitSkill)) {
+      return [explicitSkill]
+    }
+    if (normalizedActions.length > 0) return normalizedActions
+    const fallbackAction = inferFallbackAction(username, message)
+    if (fallbackAction) return [fallbackAction]
+
+    const text = normalizeCommandText(message)
+    const asksToFollow =
+      /\b(follow me|follow|takip et|beni takip|beni izle|arkamdan gel|pesimden gel|peşimden gel)\b/i.test(
+        text
+      ) ||
+      (text.includes('takip') && (text.includes('beni') || text.includes('et')))
+
+    if (asksToFollow) {
+      return [
+        {
+          tool: 'follow_player',
+          args: { name: username, near: 2 },
+          reason: 'explicit follow command fallback'
+        }
+      ]
+    }
+
+    return normalizedActions
+  }
+
+  function isActionableChatCommand(message) {
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    const actionWords = [
+      'gel',
+      'come',
+      'takip',
+      'follow',
+      'git',
+      'goto',
+      'move',
+      'yuru',
+      'yürü',
+      'walk',
+      'kos',
+      'koş',
+      'dur',
+      'stop',
+      'kes',
+      'kir',
+      'kır',
+      'kaz',
+      'dig',
+      'mine',
+      'break',
+      'topla',
+      'collect',
+      'gather',
+      'bul',
+      'find',
+      'ara',
+      'search',
+      'getir',
+      'bring',
+      'ver',
+      'give',
+      'at',
+      'drop',
+      'birak',
+      'bırak',
+      'koy',
+      'place',
+      'yerlestir',
+      'yerleştir',
+      'craft',
+      'yap',
+      'uret',
+      'üret',
+      'ye',
+      'eat',
+      'uyu',
+      'sleep',
+      'kullan',
+      'use',
+      'saldir',
+      'saldır',
+      'attack',
+      'vur',
+      'koru',
+      'protect',
+      'guard',
+      'kesfet',
+      'keşfet',
+      'explore',
+      'envanter',
+      'inventory',
+      'durum',
+      'status'
+    ]
+    const actionPhrases = [
+      'come to me',
+      'follow me',
+      'beni takip',
+      'takip et',
+      'yanima gel',
+      'yanıma gel',
+      'arkamdan gel',
+      'beni koru',
+      'protect me'
+    ]
+    return actionPhrases.some((phrase) => text.includes(phrase)) || hasAnyWord(words, actionWords)
+  }
+
+  function isMovementTool(tool) {
+    return [
+      'move_to',
+      'come',
+      'come_to_me',
+      'come_to_player',
+      'go_to',
+      'go_to_player',
+      'follow',
+      'follow_entity',
+      'follow_user',
+      'follow_player',
+      'explore',
+      'explore_cave'
+    ].includes(String(tool || '').toLowerCase())
+  }
+
+  function isActionAllowedForMessage(action, message) {
+    const tool = String(action?.tool || action?.intent || '').toLowerCase()
+    if (!tool) return false
+    if (['say', 'chat', 'status', 'inventory', 'stop'].includes(tool)) return true
+    if (!isActionableChatCommand(message)) return false
+
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    if (isMovementTool(tool)) {
+      return (
+        hasAnyWord(words, [
+          'gel',
+          'come',
+          'takip',
+          'follow',
+          'git',
+          'goto',
+          'move',
+          'yuru',
+          'yürü',
+          'walk',
+          'kesfet',
+          'keşfet',
+          'explore'
+        ]) ||
+        text.includes('come to me') ||
+        text.includes('follow me') ||
+        text.includes('yanima gel') ||
+        text.includes('yanıma gel') ||
+        text.includes('takip et') ||
+        text.includes('beni takip')
+      )
+    }
+    return true
+  }
+
+  function normalizeIntentAction(action, username, message) {
+    if (!action || typeof action !== 'object') return action
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    const tool = String(action.tool || action.intent || '').toLowerCase()
+    const args =
+      action.args && typeof action.args === 'object'
+        ? action.args
+        : action.parameters && typeof action.parameters === 'object'
+          ? action.parameters
+          : {}
+    const semanticTarget = action.target || args.target
+
+    const asksCome =
+      hasAnyWord(words, ['gel', 'come']) ||
+      text.includes('yanima gel') ||
+      text.includes('yanıma gel') ||
+      text.includes('come to me')
+    const asksFollow =
+      text.includes('follow me') ||
+      text.includes('takip et') ||
+      text.includes('beni takip') ||
+      text.includes('beni izle') ||
+      text.includes('arkamdan gel')
+    const asksProtect =
+      text.includes('beni koru') ||
+      text.includes('protect me') ||
+      text.includes('guard me') ||
+      hasAnyWord(words, ['koru', 'protect', 'guard'])
+
+    if (asksCome && (tool === 'move_to' || tool === 'follow_player' || tool === 'go_to')) {
+      return { tool: 'come_to_player', args: { player: username, near: args.near || 2 }, reason: 'intent normalized from come command' }
+    }
+    if (asksFollow && (tool === 'move_to' || tool === 'follow_player' || tool === 'go_to')) {
+      return { tool: 'follow_player', args: { player: username, near: args.near || 2 }, reason: 'intent normalized from follow command' }
+    }
+    if (asksProtect) {
+      return { tool: 'protect_player', args: { player: username }, reason: 'intent normalized from protect command' }
+    }
+    if (action.intent && !action.tool) {
+      return {
+        tool,
+        args: {
+          ...args,
+          target: semanticTarget,
+          player: args.player || (semanticTarget === 'speaker' ? username : undefined)
+        },
+        reason: action.reason || 'intent object normalized'
+      }
+    }
+    return action
+  }
+
+  function inferExplicitSkillAction(username, message) {
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    const wantsWood = hasAnyWord(words, ['odun', 'agac', 'ağaç', 'wood', 'log'])
+    const wantsPlanks = hasAnyWord(words, ['tahta', 'plank', 'planks'])
+    const wantsCraftingTable =
+      text.includes('craftingtable') ||
+      text.includes('crafting table') ||
+      text.includes('crafting_table') ||
+      text.includes('çalışma masası') ||
+      text.includes('calisma masasi')
+    const wantsGive = hasAnyWord(words, ['ver', 'give', 'bana', 'getir'])
+
+    if (wantsWood && (wantsPlanks || wantsCraftingTable) && wantsCraftingTable) {
+      const requested = words.map(Number).find((value) => Number.isFinite(value))
+      return {
+        tool: 'make_crafting_table_for_player',
+        args: { player: wantsGive ? username : undefined, logs: requested || 3 },
+        reason: 'compound wood to planks to crafting table request'
+      }
+    }
+
+    return undefined
+  }
+
+  function shouldPreferSkillAction(actions, skillAction) {
+    if (!skillAction) return false
+    if (!Array.isArray(actions) || actions.length === 0) return true
+    return actions.some((action) => {
+      const tool = String(action?.tool || '').toLowerCase()
+      return tool === 'move_to' || tool === 'look_at' || tool === 'say' || tool === 'chat'
+    })
+  }
+
+  function inferFallbackAction(username, message) {
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    const count = words.map(Number).find((value) => Number.isFinite(value))
+    const coordinates = extractCommandCoordinates(words)
+    const after = (...tokens) => firstWordAfterAny(words, tokens)
+
+    if (hasAnyWord(words, ['dur', 'stop', 'iptal', 'cancel'])) {
+      return { tool: 'stop', args: {}, reason: 'fallback stop command' }
+    }
+    if (hasAnyWord(words, ['durum', 'status'])) {
+      return { tool: 'status', args: {}, reason: 'fallback status command' }
+    }
+    if (hasAnyWord(words, ['envanter', 'inventory', 'items', 'itemler'])) {
+      return { tool: 'inventory', args: {}, reason: 'fallback inventory command' }
+    }
+    if (
+      text.includes('yanima gel') ||
+      text.includes('yanıma gel') ||
+      text.includes('come to me') ||
+      hasAnyWord(words, ['gel', 'come'])
+    ) {
+      return { tool: 'come_to_player', args: { player: username, near: 2 }, reason: 'fallback come intent' }
+    }
+
+    if (
+      text.includes('follow me') ||
+      text.includes('takip et') ||
+      text.includes('beni takip') ||
+      text.includes('beni izle') ||
+      text.includes('arkamdan gel') ||
+      text.includes('pesimden gel') ||
+      text.includes('peşimden gel') ||
+      hasAnyWord(words, ['follow'])
+    ) {
+      return { tool: 'follow_player', args: { player: username, near: 2 }, reason: 'fallback follow intent' }
+    }
+    if (hasAnyWord(words, ['kesfet', 'keşfet', 'explore', 'dolas', 'dolaş'])) {
+      return { tool: 'explore', args: { reason: text || 'fallback explore' }, reason: 'fallback explore command' }
+    }
+    if (coordinates && hasAnyWord(words, ['git', 'goto', 'move', 'yuru', 'yürü'])) {
+      return { tool: 'move_to', args: { ...coordinates, near: 2 }, reason: 'fallback coordinate move command' }
+    }
+    if (hasAnyWord(words, ['ye', 'eat', 'yemek', 'ac', 'aç', 'hungry'])) {
+      return { tool: 'eat_food', args: {}, reason: 'fallback eat command' }
+    }
+    if (hasAnyWord(words, ['uyu', 'sleep', 'yat'])) {
+      return { tool: 'sleep', args: { range: 32 }, reason: 'fallback sleep command' }
+    }
+    if (hasAnyWord(words, ['kullan', 'use', 'tikla', 'tıkla'])) {
+      return { tool: 'use_item', args: {}, reason: 'fallback use command' }
+    }
+    if (hasAnyWord(words, ['saldir', 'saldır', 'vur', 'oldur', 'öldür', 'attack', 'fight'])) {
+      return {
+        tool: 'attack_entity',
+        args: { name: after('saldir', 'saldır', 'vur', 'oldur', 'öldür', 'attack', 'fight') },
+        reason: 'fallback attack command'
+      }
+    }
+    if (hasAnyWord(words, ['koy', 'place', 'yerlestir', 'yerleştir'])) {
+      return {
+        tool: 'place_block',
+        args: { item: after('koy', 'place', 'yerlestir', 'yerleştir'), where: ['front'] },
+        reason: 'fallback place command'
+      }
+    }
+    if (hasAnyWord(words, ['craft', 'yap', 'uret', 'üret'])) {
+      return {
+        tool: 'craft_item',
+        args: { item: after('craft', 'yap', 'uret', 'üret'), count: count || 1 },
+        reason: 'fallback craft command'
+      }
+    }
+    if (hasAnyWord(words, ['giy', 'tak', 'equip', 'kusan', 'kuşan'])) {
+      return {
+        tool: 'equip_item',
+        args: { item: after('giy', 'tak', 'equip', 'kusan', 'kuşan') },
+        reason: 'fallback equip command'
+      }
+    }
+    if (hasAnyWord(words, ['erit', 'pisir', 'pişir', 'smelt', 'cook'])) {
+      return {
+        tool: 'smelt_item',
+        args: { item: after('erit', 'pisir', 'pişir', 'smelt', 'cook') || 'ore' },
+        reason: 'fallback smelt command'
+      }
+    }
+    if (hasAnyWord(words, ['ver', 'give', 'at', 'birak', 'bırak'])) {
+      return {
+        tool: 'give_items',
+        args: { player: username, item: extractGiveTarget(words) },
+        reason: 'fallback give command'
+      }
+    }
+    if (hasAnyWord(words, ['bak', 'look'])) {
+      return { tool: 'look_at', args: { target: after('bak', 'look') || 'nearest' }, reason: 'fallback look command' }
+    }
+    if (hasAnyWord(words, ['kir', 'kır', 'kaz', 'dig', 'mine', 'break', 'topla', 'ara', 'bul'])) {
+      return {
+        tool: 'mine_block',
+        args: {
+          target:
+            after('kir', 'kır', 'kaz', 'dig', 'mine', 'break', 'topla', 'ara', 'bul') || words[0],
+          count: count || 1,
+          range: 64
+        },
+        reason: 'fallback mine/search command'
+      }
+    }
+    return undefined
+  }
+
+  function hasAnyWord(words, candidates) {
+    return candidates.some((candidate) => words.includes(candidate))
+  }
+
+  function firstWordAfterAny(words, candidates) {
+    for (const candidate of candidates) {
+      const index = words.indexOf(candidate)
+      if (index >= 0 && words[index + 1] && !Number.isFinite(Number(words[index + 1]))) {
+        return words[index + 1]
+      }
+    }
+    return undefined
+  }
+
+  function extractGiveTarget(words) {
+    const giveVerbs = ['ver', 'give', 'at', 'birak', 'bırak']
+    const allWords = [
+      'all',
+      'everything',
+      'hepsi',
+      'hepsini',
+      'tum',
+      'tumu',
+      'tüm',
+      'tümü',
+      'hersey',
+      'herseyi',
+      'herşey',
+      'herşeyi'
+    ]
+    if (hasAnyWord(words, allWords)) return 'all'
+
+    const ignored = new Set([
+      ...giveVerbs,
+      'bana',
+      'me',
+      'to',
+      'ben',
+      'sen',
+      'lutfen',
+      'lütfen',
+      'please'
+    ])
+
+    for (const verb of giveVerbs) {
+      const index = words.indexOf(verb)
+      if (index < 0) continue
+
+      for (let cursor = index + 1; cursor < words.length; cursor++) {
+        const word = words[cursor]
+        if (!word || ignored.has(word) || Number.isFinite(Number(word))) continue
+        return word
+      }
+
+      for (let cursor = index - 1; cursor >= 0; cursor--) {
+        const word = words[cursor]
+        if (!word || ignored.has(word) || Number.isFinite(Number(word))) continue
+        return word
+      }
+    }
+
+    return undefined
+  }
+
+  function extractCommandCoordinates(words) {
+    const numbers = words.map(Number).filter((value) => Number.isFinite(value))
+    if (numbers.length >= 3) return { x: numbers[0], y: numbers[1], z: numbers[2] }
+    if (numbers.length === 2 && bot.entity?.position) {
+      return { x: numbers[0], y: Math.floor(bot.entity.position.y), z: numbers[1] }
+    }
+    return undefined
+  }
+
   function getInventorySnapshot() {
     const wood = getWoodProgress()
     return `wood ${wood.logs} logs/${wood.planks} planks, sticks ${getStickCount()}, stone ${getStoneProgress()}, coal ${inventoryCount('coal')}, iron ${getIronProgress()}, gold ${getGoldProgress()}, copper ${getCopperProgress()}, diamond ${getDiamondProgress()}, obsidian ${getObsidianProgress()}`
@@ -3862,21 +5176,27 @@ function newBot(options) {
     const entity = findPlayerEntity(resolvedName)
     if (!entity) {
       sendEvent(bot._client.username, 'chat', `Pathfinder: player not found ${playerName || ''}`)
-      return
+      return { ok: false, reason: 'player_not_found' }
+    }
+
+    const normalizedTarget = normalizeBlockName(target)
+    const giveAll = isGiveAllTarget(normalizedTarget)
+    if (!normalizedTarget) {
+      sendEvent(bot._client.username, 'chat', 'Pathfinder: item name required, say "hepsini" to give all')
+      return { ok: false, reason: 'item_target_required' }
     }
 
     await mobility.reach(entity.position, { near: 2, timeoutMs: 22000 })
 
-    const items = bot.inventory
+    const matchingItems = bot.inventory
       .items()
-      .filter((item) => itemMatchesTarget(item.name, target))
-      .filter(
-        (item) => !/pickaxe|axe|shovel|sword|helmet|chestplate|leggings|boots/.test(item.name)
-      )
+      .filter((item) => (giveAll ? true : itemMatchesTarget(item.name, normalizedTarget)))
+      .sort((a, b) => itemTargetPriority(a.name, normalizedTarget) - itemTargetPriority(b.name, normalizedTarget))
+    const items = giveAll ? matchingItems : matchingItems.slice(0, 1)
 
     if (items.length === 0) {
       sendEvent(bot._client.username, 'chat', `Pathfinder: no matching items to give`)
-      return
+      return { ok: false, reason: `item_not_found:${normalizedTarget}` }
     }
 
     for (const item of items) {
@@ -3885,7 +5205,12 @@ function newBot(options) {
       })
       await delay(150)
     }
-    sendEvent(bot._client.username, 'chat', `Pathfinder: gave items to ${resolvedName}`)
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `Pathfinder: gave ${giveAll ? 'all items' : items[0].name} to ${resolvedName}`
+    )
+    return { ok: true, item: giveAll ? 'all' : items[0].name, count: items.length }
   }
 
   function normalizeCommandText(text) {
@@ -3898,6 +5223,64 @@ function newBot(options) {
 
   function escapeRegExp(text) {
     return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  function getPrimaryBotName() {
+    return bot._client?.username || bot.username || options.username || 'bot'
+  }
+
+  function getAiMentionNames() {
+    const names = [
+      bot.username,
+      bot._client?.username,
+      options.username,
+      getPrimaryBotName(),
+      aiCore?.botName
+    ]
+      .map((name) => normalizeCommandText(name))
+      .filter((name) => name && name.length >= 3)
+
+    return Array.from(new Set(names))
+  }
+
+  function hasBotMention(text, mentionNames = getAiMentionNames()) {
+    const normalized = ` ${normalizeCommandText(text)} `
+    return mentionNames.some((name) => {
+      const pattern = new RegExp(`\\s@?${escapeRegExp(name)}(?=\\s)`, 'i')
+      return pattern.test(normalized)
+    })
+  }
+
+  function stripBotMentions(text) {
+    return getAiMentionNames()
+      .sort((a, b) => b.length - a.length)
+      .reduce(
+        (value, name) =>
+          value.replace(new RegExp(`(^|\\s)@?${escapeRegExp(name)}(?=\\s|$)`, 'g'), ' '),
+        normalizeCommandText(text)
+      )
+      .replace(/^(ai|bot)\s+/, '')
+      .trim()
+  }
+
+  function parseMessageStringForAi(rawMessage) {
+    const message = readChatText(rawMessage).trim()
+    if (!message) return undefined
+
+    const parsed = message.match(/^(?:<([^>]+)>|\[([^\]]+)\]|([^:：»>]+))\s*(?:[:：»>])\s*(.+)$/)
+    if (!parsed) return { username: 'Server', message }
+
+    return {
+      username: (parsed[1] || parsed[2] || parsed[3] || 'Server').trim(),
+      message: (parsed[4] || message).trim()
+    }
+  }
+
+  function handleAiMessageString(rawMessage) {
+    const parsed = parseMessageStringForAi(rawMessage)
+    if (!parsed) return
+    if (!configBoolean('aiMode') || !hasBotMention(parsed.message)) return
+    handleAiChat(parsed.username, parsed.message)
   }
 
   function parseAiCollectCommand(words) {
@@ -3951,7 +5334,7 @@ function newBot(options) {
   }
 
   function isAiModeActive() {
-    return toBoolean(storeinfo().boolean.aiMode)
+    return configBoolean('aiMode')
   }
 
   function sendAiHelp() {
@@ -3963,7 +5346,7 @@ function newBot(options) {
   }
 
   function sendAiStatus() {
-    const mode = toBoolean(storeinfo().boolean.aiMode) ? 'on' : 'off'
+    const mode = configBoolean('aiMode') ? 'on' : 'off'
     const task = pathfinderBusy
       ? 'busy'
       : bot.pathfinder?.isMoving?.()
@@ -4068,32 +5451,46 @@ function newBot(options) {
   }
 
   function handleAiChat(username, message) {
-    if (!storeinfo().boolean.aiMode || username === bot.username) return
+    const normalizedSender = normalizeCommandText(username)
+    if (!configBoolean('aiMode') || !aiSpawnReady || getAiMentionNames().includes(normalizedSender)) return
     aiMemory.owner = username
     const text = normalizeCommandText(message)
-    const botName = String(bot.username || '').toLowerCase()
+    const mentionNames = getAiMentionNames()
+    if (mentionNames.length === 0 || !hasBotMention(text, mentionNames)) return
     const mentionedBotNames = Array.from(connectedBots)
-      .map((name) => String(name || '').toLowerCase())
-      .filter((name) => name && text.includes(name))
-    if (mentionedBotNames.length > 0 && !mentionedBotNames.includes(botName)) return
-    const addressed =
-      text.startsWith('ai ') ||
-      text.startsWith('bot ') ||
-      text.includes(botName) ||
-      ['gel', 'come', 'dur', 'stop', 'yardim', 'help', 'durum', 'status', 'plan', 'hedef'].includes(
-        text
-      )
-    if (!addressed) {
-      askGeminiFromChat(username, message)
+      .map((name) => normalizeCommandText(name))
+      .filter((name) => name && hasBotMention(text, [name]))
+    if (
+      mentionedBotNames.length > 0 &&
+      !mentionedBotNames.some((name) => mentionNames.includes(name))
+    )
+      return
+
+    const cleaned = stripBotMentions(text)
+    const words = cleaned.split(' ').filter(Boolean)
+    if (words.length === 0) {
+      askGeminiFromChat(
+        username,
+        'The player only mentioned your bot name. This is a ping, not a movement or action command. Reply briefly that you are listening and ready. Do not move, pathfind, mine, attack, place, or use tools.',
+        {
+          allowActions: false,
+          bypassDedupe: true,
+          defaultReply: 'Buradayim, komutunu bekliyorum.'
+        }
+      ).catch((error) => {
+        sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+      })
       return
     }
 
-    const cleaned = text
-      .replace(botName ? new RegExp(`\\b${escapeRegExp(botName)}\\b`, 'g') : /$^/, '')
-      .replace(/^(ai|bot)\s+/, '')
-      .trim()
-    const words = cleaned.split(' ').filter(Boolean)
-    if (words.length === 0) return
+    if (['dur', 'stop', 'iptal', 'cancel'].includes(words[0])) {
+      stopPathfinderTask('Gemini: stopped by chat command')
+      bot.stopDigging?.()
+      resetAiBody()
+      aiThinkBusy = false
+      sendEvent(bot._client.username, 'chat', 'Gemini: stopped')
+      return
+    }
 
     if (['yardim', 'help', 'komut', 'commands'].includes(words[0])) {
       sendAiHelp()
@@ -4113,7 +5510,10 @@ function newBot(options) {
       return
     }
     if (['llm', 'gemini'].includes(words[0])) {
-      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+      askGeminiFromChat(
+        username,
+        words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.'
+      ).catch((error) => {
         sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
       })
       return
@@ -4130,17 +5530,21 @@ function newBot(options) {
       return
     }
     if (['model', 'provider'].includes(words[0])) {
-      const model = words[0] === 'provider' ? words[2] || words[1] || getConfiguredAiModel() : words[1] || getConfiguredAiModel()
+      const model =
+        words[0] === 'provider'
+          ? words[2] || words[1] || getConfiguredAiModel()
+          : words[1] || getConfiguredAiModel()
       aiCore.setModel(model)
       store.set('config.value.aiProvider', 'gemini')
       store.set('config.value.aiModel', model)
       sendEvent(bot._client.username, 'chat', `Gemini model: ${aiCore.llm.model}`)
       return
     }
-    askGeminiFromChat(username, cleaned || message)
-    return
     if (['auto', 'otonom', 'brain', 'beyin'].includes(words[0])) {
-      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.')
+      askGeminiFromChat(
+        username,
+        words.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.'
+      )
       return
     }
     if (['research', 'arastir', 'araştır'].includes(words[0])) {
@@ -4162,9 +5566,17 @@ function newBot(options) {
       return
     }
     if (['plan', 'hedef', 'goal'].includes(words[0])) {
-      askGeminiFromChat(username, words.slice(1).join(' ') || 'Durumu incele, hedef seç ve uygun aksiyonu uygula.')
+      askGeminiFromChat(
+        username,
+        words.slice(1).join(' ') || 'Durumu incele, hedef seç ve uygun aksiyonu uygula.'
+      )
       return
     }
+    askGeminiFromChat(username, cleaned).catch((error) => {
+      sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+    })
+    return
+
     if (['portal', 'nether'].includes(words[0])) {
       sendPortalPlan()
       return
@@ -4261,7 +5673,7 @@ function newBot(options) {
       return
     }
     if (['ver', 'give'].includes(words[0])) {
-      tossInventoryToPlayer(username, words[1])
+      tossInventoryToPlayer(username, extractGiveTarget(words))
       return
     }
 
@@ -4273,6 +5685,7 @@ function newBot(options) {
         collectCommand.range,
         collectCommand.deliveryTarget === 'sender' ? username : collectCommand.deliveryTarget
       )
+      return
     }
   }
 
@@ -4296,7 +5709,9 @@ function newBot(options) {
         if (['model', 'provider'].includes(String(args[1] || '').toLowerCase())) {
           const subcommand = String(args[1] || '').toLowerCase()
           const model =
-            subcommand === 'provider' ? args[3] || args[2] || getConfiguredAiModel() : args[2] || getConfiguredAiModel()
+            subcommand === 'provider'
+              ? args[3] || args[2] || getConfiguredAiModel()
+              : args[2] || getConfiguredAiModel()
           aiCore.setModel(model)
           store.set('config.value.aiProvider', 'gemini')
           store.set('config.value.aiModel', model)
@@ -4344,13 +5759,19 @@ function newBot(options) {
           return
         }
         if (['llm', 'gemini'].includes(String(args[1] || '').toLowerCase())) {
-          askGeminiFromChat(resolvePlayerName(), args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+          askGeminiFromChat(
+            resolvePlayerName(),
+            args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.'
+          ).catch((error) => {
             sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
           })
           return
         }
         if (['brain', 'beyin', 'auto', 'otonom'].includes(String(args[1] || '').toLowerCase())) {
-          askGeminiFromChat(resolvePlayerName(), args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.')
+          askGeminiFromChat(
+            resolvePlayerName(),
+            args.slice(2).join(' ') || 'Durumu incele ve uygun aksiyonu seç.'
+          )
           return
         }
         sendAiStatus()
@@ -4439,7 +5860,10 @@ function newBot(options) {
         break
       case 'llm':
       case 'gemini':
-        askGeminiFromChat(resolvePlayerName(), args.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.').catch((error) => {
+        askGeminiFromChat(
+          resolvePlayerName(),
+          args.slice(1).join(' ') || 'Durumu incele ve uygun aksiyonu seç.'
+        ).catch((error) => {
           sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
         })
         break
@@ -4588,7 +6012,7 @@ function newBot(options) {
         bot.quit()
         break
       case 'chat':
-        const bypass = storeinfo().boolean.bypassChat ? ' ' + salt(crypto.randomInt(2, 6)) : ''
+        const bypass = configBoolean('bypassChat') ? ' ' + salt(crypto.randomInt(2, 6)) : ''
         const chatMessage =
           optionsArray
             .join(' ')

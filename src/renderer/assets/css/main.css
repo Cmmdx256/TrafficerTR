@@ -527,6 +527,20 @@ ul {
   background: var(--ev-c-gray-2);
 }
 
+#botList .botListItem.offline {
+  opacity: 0.62;
+  color: rgba(255, 255, 255, 0.72);
+  border-left: solid 2px rgba(255, 209, 95, 0.35);
+  background: rgba(40, 18, 18, 0.42);
+}
+
+#botList .botListItem.error {
+  opacity: 0.82;
+  color: #ffd6d3;
+  border-left: solid 2px rgba(255, 78, 70, 0.72);
+  background: rgba(104, 15, 15, 0.5);
+}
+
 
 select {
   appearance: none;
@@ -735,6 +749,30 @@ img {
 .about-copy .tip {
   margin-top: 10px;
   line-height: 1.45;
+}
+
+.about-release-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.about-release-notes > div {
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 214, 116, 0.14);
+  border-radius: 6px;
+  background: rgba(31, 8, 8, 0.24);
+}
+
+.about-release-notes .text-sm {
+  color: rgba(255, 236, 196, 0.95);
+}
+
+.about-release-notes .text-sm-2 {
+  margin-top: 6px;
 }
 
 .about-meta {
@@ -979,7 +1017,30 @@ body.custom-background {
 }
 
 body.custom-background .theme-scene {
-  opacity: 0.16;
+  display: none;
+}
+
+body.custom-background::after {
+  opacity: 0.28;
+}
+
+body.custom-background .content {
+  background: rgba(18, 4, 5, 0.08);
+}
+
+body.custom-background .area,
+body.theme-winter.custom-background .area,
+body.theme-summer.custom-background .area {
+  background: rgba(10, 7, 8, 0.22);
+}
+
+body.custom-background .topbar,
+body.custom-background .sidebar,
+body.theme-winter.custom-background .topbar,
+body.theme-winter.custom-background .sidebar,
+body.theme-summer.custom-background .topbar,
+body.theme-summer.custom-background .sidebar {
+  background: rgba(18, 8, 10, 0.62);
 }
 
 body::after {
@@ -1372,16 +1433,28 @@ select:focus {
 
 .settings-background-control {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: flex-end;
   gap: 4px;
   min-width: 190px;
 }
 
 .settings-background-control .button {
-  max-width: 190px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.settings-background-control .tip-sm {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.background-clear {
+  display: none;
+  padding-left: 14px;
+  padding-right: 14px;
 }
 
 .github-link {
@@ -1690,14 +1763,12 @@ select:focus {
 
 #settingsPanel .settings-tab-content {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
-  gap: 18px;
+  display: block;
   width: 100%;
   height: 100%;
   max-height: none;
   margin: 0;
-  padding: 4px 12px 12px 0;
+  padding: 4px 16px 16px 0;
   overflow: auto;
   border: 0;
   border-radius: 0;
@@ -1707,34 +1778,21 @@ select:focus {
 }
 
 #settingsPanel .settings-tab-content > .text-sm:first-child {
-  grid-column: 1;
   font-size: 28px;
   font-weight: 700;
+  margin: 0 0 10px;
 }
 
 #settingsPanel .settings-grid {
-  grid-column: 1;
-  display: flex;
-  flex-direction: column;
-  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 10px;
+  max-width: 760px;
+  margin-bottom: 18px;
 }
 
 #settingsPanel .settings-tab-content > .text-sm.mu-2 {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: end;
-}
-
-#settingsPanel .settings-tab-content > .flex,
-#settingsPanel .settings-tab-content > label.containerCheckbox,
-#settingsPanel .settings-tab-content > p.text-sm:not(:first-child),
-#settingsPanel .settings-tab-content > button {
-  grid-column: 2;
-}
-
-#settingsPanel .settings-tab-content > p.text-sm:last-of-type,
-#settingsPanel #resetConfig {
-  grid-column: 1;
+  margin: 18px 0 10px;
 }
 
 #settingsPanel .settings-row,
@@ -2272,4 +2330,67 @@ body.time-night.theme-winter .snow {
     opacity: 0.72;
     transform: translateX(22px);
   }
+}
+
+body.custom-background,
+body.theme-winter.custom-background,
+body.theme-summer.custom-background {
+  background:
+    var(--custom-background-image) center center / cover no-repeat fixed,
+    radial-gradient(circle at 18% 16%, rgba(245, 73, 57, 0.14), transparent 28%),
+    linear-gradient(145deg, #160404 0%, #260707 48%, #130303 100%) !important;
+  background-color: #160404 !important;
+}
+
+body.custom-background::after {
+  display: none !important;
+}
+
+body.custom-background .theme-scene {
+  display: none !important;
+}
+
+body.custom-background .content,
+body.custom-background .area,
+body.custom-background .controlArea,
+body.theme-winter.custom-background .area,
+body.theme-summer.custom-background .area {
+  background: rgba(10, 7, 8, 0.14) !important;
+}
+
+body.custom-background .topbar,
+body.custom-background .sidebar,
+body.theme-winter.custom-background .topbar,
+body.theme-winter.custom-background .sidebar,
+body.theme-summer.custom-background .topbar,
+body.theme-summer.custom-background .sidebar {
+  background: rgba(18, 8, 10, 0.68) !important;
+  backdrop-filter: blur(8px);
+}
+
+body.custom-background .settings-row,
+body.custom-background #settingsPanel .settings-tab-content > .flex {
+  background: rgba(55, 18, 18, 0.5) !important;
+}
+
+#settingsPanel .settings-tab-content {
+  display: block !important;
+}
+
+#settingsPanel .settings-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(260px, 1fr)) !important;
+  gap: 10px !important;
+  max-width: 760px !important;
+}
+
+#settingsPanel .settings-tab-content > .text-sm,
+#settingsPanel .settings-tab-content > .text-sm.mu-2 {
+  display: block !important;
+  margin: 18px 0 10px !important;
+  clear: both;
+}
+
+#settingsPanel .settings-tab-content > .text-sm:first-child {
+  margin-top: 0 !important;
 }
