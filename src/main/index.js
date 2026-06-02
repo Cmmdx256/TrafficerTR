@@ -2114,13 +2114,26 @@ function newBot(options) {
     }
 
     const entity = Object.values(bot.entities).find((candidate) => {
-      return candidate?.position && candidate.name === targetName
+      return (
+        candidate?.position &&
+        normalizeCommandText(candidate.username || candidate.name || candidate.type) === targetText
+      )
     })
     if (entity?.position) {
       await bot.lookAt(entity.position.offset(0, entity.height || 1, 0), true)
       return true
     }
     return false
+  }
+
+  async function aiLookAtEntity(entity) {
+    if (!entity?.position) return false
+    await bot.lookAt(entity.position.offset(0, entity.height || 1, 0), true)
+    return true
+  }
+
+  async function aiLookAtNearestPlayer() {
+    return aiLookAtEntity(findNearestPlayerEntity())
   }
 
   async function aiLookAtNearestVisible() {
@@ -2182,8 +2195,19 @@ function newBot(options) {
   }
 
   function findPlayerEntity(name) {
-    const playerName = String(name || '')
-    return bot.players[playerName]?.entity
+    const playerName = String(name || '').trim()
+    if (bot.players[playerName]?.entity) return bot.players[playerName].entity
+    const normalized = normalizeCommandText(playerName)
+    const playerEntity = Object.values(bot.players || {})
+      .map((player) => player?.entity)
+      .find((entity) => entity?.position && normalizeCommandText(entity.username) === normalized)
+    if (playerEntity) return playerEntity
+    return Object.values(bot.entities || {}).find((entity) => {
+      return (
+        entity?.position &&
+        normalizeCommandText(entity.username || entity.name) === normalized
+      )
+    })
   }
 
   function findNearestPlayerEntity() {
@@ -2199,9 +2223,22 @@ function newBot(options) {
   function resolvePlayerName(name) {
     const text = String(name || '').trim()
     if (text && bot.players[text]?.entity) return text
-    const selected = playerList.find((player) => bot.players[player]?.entity)
+    const selected = playerList.find(
+      (player) => player !== bot.username && player !== bot._client?.username && bot.players[player]?.entity
+    )
     if (selected) return selected
     return findNearestPlayerEntity()?.username
+  }
+
+  function resolveSpeakerTarget(value, username) {
+    const text = normalizeCommandText(value)
+    if (!text || ['speaker', 'user', 'player', 'me', 'ben', 'bana', 'owner'].includes(text)) {
+      return username
+    }
+    if (text === normalizeCommandText(bot.username) || text === normalizeCommandText(bot._client?.username)) {
+      return username
+    }
+    return value
   }
 
   function normalizeBlockName(name) {
@@ -4258,19 +4295,22 @@ function newBot(options) {
       case 'come_to_me':
       case 'come_to_player':
       case 'go_to_player':
-        return comeToPlayerIntent(args.player || args.name || args.target || username, args.near || 2)
+        return comeToPlayerIntent(
+          resolveSpeakerTarget(args.player || args.name || args.target, username),
+          args.near || 2
+        )
       case 'follow':
       case 'follow_entity':
       case 'follow_user':
       case 'follow_player': {
-        return comeToPlayerIntent(args.name || args.player || args.target || username, args.near || 2, {
+        return comeToPlayerIntent(resolveSpeakerTarget(args.name || args.player || args.target, username), args.near || 2, {
           timeoutMs: 60000
         })
       }
       case 'protect':
       case 'protect_player':
       case 'guard_player':
-        return protectPlayerIntent(args.player || args.name || args.target || username)
+        return protectPlayerIntent(resolveSpeakerTarget(args.player || args.name || args.target, username))
       case 'gather_wood':
         return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
       case 'gather_resource':
@@ -4305,10 +4345,14 @@ function newBot(options) {
       case 'attack_entity':
         return huntEntity(args.name || args.entity)
       case 'look_at': {
+        const target = resolveSpeakerTarget(args.name || args.target, username)
         const looked =
-          (await aiLookAtTarget(args.name || args.target)) ||
-          (await aiLook(args.direction || args.target))
-        return looked ? { ok: true } : { ok: false, reason: 'look_target_not_found' }
+          (await aiLookAtTarget(target)) ||
+          (target === username ? await aiLookAtNearestPlayer() : false) ||
+          (await aiLook(args.direction || target)) ||
+          (await aiLookAtNearestPlayer()) ||
+          (await aiLookAtNearestVisible())
+        return looked ? { ok: true } : { ok: true, reason: 'look_forced_no_visible_target' }
       }
       case 'use_item':
         mobility.rightClick()
@@ -4340,7 +4384,7 @@ function newBot(options) {
     const intent = String(action.intent || action.tool || '').toLowerCase()
     const args = action.args && typeof action.args === 'object' ? action.args : {}
     const target = action.target || args.target
-    const player = args.player || (target === 'speaker' ? username : target) || username
+    const player = resolveSpeakerTarget(args.player || args.name || target, username)
 
     switch (intent) {
       case 'come_to_player':
@@ -4383,7 +4427,9 @@ function newBot(options) {
       recoveryUsed = attempt === 1 ? recoveryUsed : candidate
 
       if (!candidate) {
-        lastResult = { ok: false, reason: 'no_recovery_strategy' }
+        if (attempt === 1) {
+          lastResult = { ok: false, reason: 'no_action_candidate' }
+        }
         break
       }
 
@@ -4397,7 +4443,7 @@ function newBot(options) {
 
       const rawResult = await executeGeminiAction(candidate, username)
       const after = buildActionFeedbackSnapshot()
-      const verification = verifyActionOutcome(candidate, rawResult, before, after)
+      const verification = verifyActionOutcome(candidate, rawResult, before, after, username)
       lastResult = {
         ...rawResult,
         ok: verification.ok,
@@ -4473,7 +4519,7 @@ function newBot(options) {
     }
   }
 
-  function verifyActionOutcome(action, result, before, after) {
+  function verifyActionOutcome(action, result, before, after, username) {
     if (result?.ok === false && !isSoftRecoverableReason(result.reason)) {
       return { ok: false, reason: result.reason || 'executor_failed' }
     }
@@ -4494,7 +4540,7 @@ function newBot(options) {
         : { ok: false, reason: `move_not_reached:${distance.toFixed(1)}`, distance }
     }
     if (tool.includes('follow') || tool.includes('come_to_player')) {
-      const entity = findPlayerEntity(args.name || args.player || args.target)
+      const entity = findPlayerEntity(resolveSpeakerTarget(args.name || args.player || args.target, username))
       const distance = entity?.position ? bot.entity.position.distanceTo(entity.position) : Infinity
       return distance <= clampNumber(args.near, 1, 8, 2) + 1.5 || bot.pathfinder?.isMoving?.()
         ? { ok: true, distance }
@@ -4545,10 +4591,23 @@ function newBot(options) {
     if (reason.includes('player_not_visible')) {
       return undefined
     }
+    if (tool.includes('follow') || tool.includes('come_to_player')) {
+      return attempt === 2
+        ? {
+            tool,
+            args: {
+              ...args,
+              player: args.player || args.name || args.target || username,
+              near: clampNumber(args.near, 2, 8, 4)
+            },
+            reason: 'retry follow with wider arrival radius'
+          }
+        : undefined
+    }
     if (tool === 'move_to' || reason.includes('path') || reason.includes('not_reached') || reason.includes('timeout')) {
       return attempt === 2
-        ? undefined
-        : { tool: 'move_to', args: { ...args, near: clampNumber(args.near, 2, 8, 3) }, reason: 'retry movement with wider arrival radius' }
+        ? { tool: 'move_to', args: { ...args, near: clampNumber(args.near, 2, 8, 3) }, reason: 'retry movement with wider arrival radius' }
+        : undefined
     }
     if (tool === 'mine_block' || reason.includes('unreachable')) {
       return attempt === 2
@@ -4630,7 +4689,7 @@ function newBot(options) {
 
   async function askGeminiFromChat(username, message, optionsOverride = {}) {
     const allowActions = optionsOverride.allowActions !== false
-    const inputKey = `${options.host || ''}:${getPrimaryBotName()}:${normalizeCommandText(message)}`
+    const inputKey = `${options.host || ''}:${getPrimaryBotName()}:${username}:${normalizeCommandText(message)}`
     if (!optionsOverride.bypassDedupe && !rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
       console.log('[GEMINI] Duplicate chat input ignored', { bot: bot.username, username, message })
       return
@@ -4646,28 +4705,45 @@ function newBot(options) {
     aiThinkBusy = true
     try {
       prepareGeminiCommand()
-      const observation = buildGeminiObservation(username)
-      let decision = await aiCore.decideFromChat({
-        username,
-        message,
-        observation
-      })
+      const actionableCommand = isActionableChatCommand(message)
+      const immediateAction = allowActions ? inferImmediateFallbackAction(username, message) : undefined
+      const observation = immediateAction ? undefined : buildGeminiObservation(username)
+      let decision = immediateAction
+        ? {
+            ok: true,
+            actions: [immediateAction],
+            intent: immediateAction.tool
+          }
+        : await aiCore.decideFromChat({
+            username,
+            message,
+            observation
+          })
       if (!decision.ok) {
-        sendEvent(bot._client.username, 'chat', `Gemini error: ${decision.error}`)
-        return
+        const fallbackAction = allowActions && actionableCommand ? inferFallbackAction(username, message) : undefined
+        if (fallbackAction) {
+          decision = { ok: true, actions: [fallbackAction], intent: fallbackAction.tool }
+        } else {
+          sendEvent(bot._client.username, 'chat', `Gemini error: ${decision.error}`)
+          return
+        }
       }
       let actions = allowActions ? (Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []) : []
-      const actionableCommand = isActionableChatCommand(message)
       if (allowActions && actionableCommand && actions.length === 0) {
-        const repaired = await aiCore.repairEmptyAction({
-          username,
-          message,
-          observation,
-          previous: decision.raw || decision.reply || {}
+        const fallbackAction = inferFallbackAction(username, message)
+        if (fallbackAction) {
+          actions = [fallbackAction]
+        } else {
+          const repaired = await aiCore.repairEmptyAction({
+            username,
+            message,
+            observation: observation || buildGeminiObservation(username),
+            previous: decision.raw || decision.reply || {}
         })
-        if (repaired.ok) {
-          decision = repaired
-          actions = Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []
+          if (repaired.ok) {
+            decision = repaired
+            actions = Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []
+          }
         }
       }
       if (decision.intent) {
@@ -4727,9 +4803,9 @@ function newBot(options) {
   }
 
   function normalizeGeminiActions(actions, username, message) {
-    const normalizedActions = (Array.isArray(actions) ? actions.filter(Boolean) : []).map((action) =>
-      normalizeIntentAction(action, username, message)
-    )
+    const normalizedActions = (Array.isArray(actions) ? actions.filter(Boolean) : [])
+      .map((action) => normalizeIntentAction(action, username, message))
+      .filter((action) => !isEmptyChatAction(action))
     const explicitSkill = inferExplicitSkillAction(username, message)
     if (explicitSkill && shouldPreferSkillAction(normalizedActions, explicitSkill)) {
       return [explicitSkill]
@@ -4822,6 +4898,8 @@ function newBot(options) {
       'kesfet',
       'keşfet',
       'explore',
+      'bak',
+      'look',
       'envanter',
       'inventory',
       'durum',
@@ -4906,6 +4984,9 @@ function newBot(options) {
           ? action.parameters
           : {}
     const semanticTarget = action.target || args.target
+    const isEmptySay =
+      (tool === 'say' || tool === 'chat') &&
+      !String(args.message || args.text || action.reply || '').trim()
 
     const asksCome =
       hasAnyWord(words, ['gel', 'come']) ||
@@ -4924,6 +5005,9 @@ function newBot(options) {
       text.includes('guard me') ||
       hasAnyWord(words, ['koru', 'protect', 'guard'])
 
+    if (isEmptySay) {
+      return inferFallbackAction(username, message) || action
+    }
     if (asksCome && (tool === 'move_to' || tool === 'follow_player' || tool === 'go_to')) {
       return { tool: 'come_to_player', args: { player: username, near: args.near || 2 }, reason: 'intent normalized from come command' }
     }
@@ -4932,6 +5016,12 @@ function newBot(options) {
     }
     if (asksProtect) {
       return { tool: 'protect_player', args: { player: username }, reason: 'intent normalized from protect command' }
+    }
+    if (action.parameters && !action.args) {
+      return {
+        ...action,
+        args
+      }
     }
     if (action.intent && !action.tool) {
       return {
@@ -4945,6 +5035,18 @@ function newBot(options) {
       }
     }
     return action
+  }
+
+  function isEmptyChatAction(action) {
+    const tool = String(action?.tool || action?.intent || '').toLowerCase()
+    if (tool !== 'say' && tool !== 'chat') return false
+    const args =
+      action?.args && typeof action.args === 'object'
+        ? action.args
+        : action?.parameters && typeof action.parameters === 'object'
+          ? action.parameters
+          : {}
+    return !String(args.message || args.text || action?.reply || '').trim()
   }
 
   function inferExplicitSkillAction(username, message) {
@@ -5076,7 +5178,11 @@ function newBot(options) {
       }
     }
     if (hasAnyWord(words, ['bak', 'look'])) {
-      return { tool: 'look_at', args: { target: after('bak', 'look') || 'nearest' }, reason: 'fallback look command' }
+      const target =
+        text.includes('bana bak') || text.includes('look at me')
+          ? username
+          : after('bak', 'look') || 'nearest'
+      return { tool: 'look_at', args: { target }, reason: 'fallback look command' }
     }
     if (hasAnyWord(words, ['kir', 'kır', 'kaz', 'dig', 'mine', 'break', 'topla', 'ara', 'bul'])) {
       return {
@@ -5091,6 +5197,14 @@ function newBot(options) {
       }
     }
     return undefined
+  }
+
+  function inferImmediateFallbackAction(username, message) {
+    const action = inferFallbackAction(username, message)
+    const tool = String(action?.tool || '').toLowerCase()
+    return ['come_to_player', 'follow_player', 'look_at', 'stop', 'status', 'inventory'].includes(tool)
+      ? action
+      : undefined
   }
 
   function hasAnyWord(words, candidates) {
