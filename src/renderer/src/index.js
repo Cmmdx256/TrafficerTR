@@ -51,7 +51,7 @@ const translations = {
     'nav.proxy': 'Proxy',
     'nav.webhook': 'Webhook',
     'nav.about': 'Hakkında',
-    'nav.settings': 'Settings',
+    'nav.settings': 'Ayarlar',
     'settings.app': 'Uygulama ayarları',
     'settings.language': 'Dil',
     'settings.theme': 'Tema',
