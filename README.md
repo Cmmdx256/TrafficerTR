@@ -1,4 +1,5 @@
-<img width="1094" height="613" alt="image" src="https://github.com/user-attachments/assets/97b049fe-bbd0-4f7c-a09d-45a557028c32" />
+<img width="1094" height="613" alt="image" src="https://github.com/user-attachments/assets/198eba17-83cc-4226-a19a-aa6617b7f48d" />
+
 
 
 # TrafficerTR
@@ -223,3 +224,7 @@ npm run build:win
 Maintained by Glock (Cmmdx).
 
 TrafficerTR is being developed toward a persistent autonomous Minecraft Agent OS, with Gemini as the strategic cortex and deterministic engines as the body.
+
+---------------------------
+
+AI used somewhere 
