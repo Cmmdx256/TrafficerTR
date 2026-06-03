@@ -277,6 +277,22 @@ code {
   cursor: pointer;
 }
 
+.nuker-panel {
+  border-left: 3px solid rgba(255, 209, 95, 0.72);
+  padding: 6px 0 6px 10px;
+  background: rgba(50, 18, 16, 0.18);
+}
+
+.nuker-details {
+  border-left: 3px solid rgba(255, 255, 255, 0.16);
+  padding-left: 10px;
+}
+
+.nuker-details summary {
+  cursor: pointer;
+  user-select: none;
+}
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 0px;

@@ -33,7 +33,7 @@ import { antiafk } from './js/misc/antiafk'
 const botApi = new EventEmitter()
 botApi.setMaxListeners(0)
 const store = new Store()
-const suspendedBotControls = new Set(['interact', 'nuker'])
+const suspendedBotControls = new Set(['interact'])
 const UPDATE_REPO = 'Cmmdx256/TrafficerTR'
 const UPDATE_API_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`
 const UPDATE_RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases/latest`
@@ -1962,6 +1962,22 @@ function newBot(options) {
   }
 
   function getNukerRanges() {
+    const simpleRange = clampNumber(configValue('nukerRange', 0), 0, 8, 0)
+    if (simpleRange > 0) {
+      const min = -Math.floor(simpleRange / 2)
+      const max = min + simpleRange - 1
+      return {
+        simple: true,
+        min,
+        max,
+        up: clampNumber(configValue('nukerRangeUp', 0), 0, 6, 0),
+        down: clampNumber(configValue('nukerRangeDown', 0), 0, 6, 0),
+        left: Math.abs(min),
+        right: Math.max(0, max),
+        forward: Math.max(0, max),
+        back: Math.abs(min)
+      }
+    }
     return {
       up: clampNumber(configValue('nukerRangeUp', 0), 0, 6, 0),
       down: clampNumber(configValue('nukerRangeDown', 0), 0, 6, 0),
@@ -1974,12 +1990,27 @@ function newBot(options) {
 
   function getFacingBasis() {
     const yaw = bot.entity.yaw || 0
+    const direction = ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 4
+    const forwardVectors = [
+      { x: 0, z: 1 },
+      { x: -1, z: 0 },
+      { x: 0, z: -1 },
+      { x: 1, z: 0 }
+    ]
+    const forward = forwardVectors[direction]
     return {
-      forwardX: Math.round(-Math.sin(yaw)),
-      forwardZ: Math.round(Math.cos(yaw)),
-      rightX: Math.round(Math.cos(yaw)),
-      rightZ: Math.round(-Math.sin(yaw))
+      forwardX: forward.x,
+      forwardZ: forward.z,
+      rightX: forward.z,
+      rightZ: -forward.x
     }
+  }
+
+  function optionalConfigNumber(key) {
+    const raw = configValue(key, '')
+    if (raw === undefined || raw === null || String(raw).trim() === '') return undefined
+    const number = Number(raw)
+    return Number.isFinite(number) ? number : undefined
   }
 
   function localOffsetToWorld(side, vertical, forward) {
@@ -1994,7 +2025,6 @@ function newBot(options) {
   function shouldNukeBlock(block, blockList, targetMode) {
     if (!block || block.name === 'air' || block.boundingBox === 'empty') return false
     if (block.name.includes('water') || block.name.includes('lava')) return false
-    if (typeof bot.canDigBlock === 'function' && !bot.canDigBlock(block)) return false
 
     const defaultBlacklist = new Set([
       'bedrock',
@@ -2023,18 +2053,35 @@ function newBot(options) {
     const seen = new Set()
     const blocks = []
 
-    for (let side = -ranges.left; side <= ranges.right; side++) {
-      for (let vertical = -ranges.down; vertical <= ranges.up; vertical++) {
-        for (let forward = -ranges.back; forward <= ranges.forward; forward++) {
-          if (side === 0 && vertical === 0 && forward === 0) continue
-          const offset = localOffsetToWorld(side, vertical, forward)
-          const position = origin.offset(offset.x, offset.y, offset.z)
-          const key = `${position.x}:${position.y}:${position.z}`
-          if (seen.has(key)) continue
-          seen.add(key)
+    if (ranges.simple) {
+      for (let x = ranges.min; x <= ranges.max; x++) {
+        for (let z = ranges.min; z <= ranges.max; z++) {
+          for (let vertical = -ranges.down; vertical <= ranges.up; vertical++) {
+            if (x === 0 && z === 0 && vertical <= 0) continue
+            const position = origin.offset(x, vertical - 1, z)
+            const key = `${position.x}:${position.y}:${position.z}`
+            if (seen.has(key)) continue
+            seen.add(key)
 
-          const block = bot.blockAt(position)
-          if (shouldNukeBlock(block, blockList, targetMode)) blocks.push(block)
+            const block = bot.blockAt(position)
+            if (shouldNukeBlock(block, blockList, targetMode)) blocks.push(block)
+          }
+        }
+      }
+    } else {
+      for (let side = -ranges.left; side <= ranges.right; side++) {
+        for (let vertical = -ranges.down; vertical <= ranges.up; vertical++) {
+          for (let forward = -ranges.back; forward <= ranges.forward; forward++) {
+            if (side === 0 && vertical === 0 && forward === 0) continue
+            const offset = localOffsetToWorld(side, vertical, forward)
+            const position = origin.offset(offset.x, offset.y, offset.z)
+            const key = `${position.x}:${position.y}:${position.z}`
+            if (seen.has(key)) continue
+            seen.add(key)
+
+            const block = bot.blockAt(position)
+            if (shouldNukeBlock(block, blockList, targetMode)) blocks.push(block)
+          }
         }
       }
     }
@@ -2044,6 +2091,27 @@ function newBot(options) {
     })
   }
 
+  function sendFastBreakPacket(block) {
+    if (!block?.position || !bot._client?.write) return false
+    try {
+      bot.swingArm?.('right')
+      bot._client.write('block_dig', {
+        status: 0,
+        location: block.position,
+        face: 1
+      })
+      bot._client.write('block_dig', {
+        status: 2,
+        location: block.position,
+        face: 1
+      })
+      return true
+    } catch (error) {
+      sendEvent(bot._client.username, 'chat', `Nuker fastbreak packet error: ${error.message}`)
+      return false
+    }
+  }
+
   async function runNuker() {
     if (nukerBusy) return
     if (nukerCooldown > 0) {
@@ -2051,8 +2119,16 @@ function newBot(options) {
       return
     }
 
-    const blocksPerTick = clampNumber(configValue('nukerBlocksPerTick', 1), 1, 8, 1)
-    const blocks = collectNukerBlocks().slice(0, blocksPerTick)
+    const fastPlace = configBoolean('nukerFastPlace', true)
+    const rotateHead = configBoolean('nukerRotateHead')
+    const allBlocks = collectNukerBlocks()
+    const configuredBlocksPerTick = optionalConfigNumber('nukerBlocksPerTick')
+    const blocksPerTick = fastPlace
+      ? allBlocks.length
+      : configuredBlocksPerTick !== undefined
+        ? clampNumber(configuredBlocksPerTick, 1, 8, 1)
+        : 1
+    const blocks = allBlocks.slice(0, blocksPerTick)
     if (blocks.length === 0) {
       nukerCooldown = 8
       return
@@ -2060,10 +2136,19 @@ function newBot(options) {
 
     nukerBusy = true
     try {
-      for (const block of blocks) {
-        if (configBoolean('nukerRotate')) {
-          await bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
+      bot.pathfinder?.setGoal?.(null)
+      bot.pathfinder?.stop?.()
+      resetAiBody()
+      if (fastPlace) {
+        let sent = 0
+        for (const block of blocks) {
+          if (sendFastBreakPacket(block)) sent++
         }
+        aiCore.recordMetric('nukerBurstBlocks', sent)
+        return
+      }
+      for (const block of blocks) {
+        if (rotateHead) await bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
         await bot.dig(block, true)
         await delay(35)
       }

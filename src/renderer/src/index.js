@@ -41,7 +41,34 @@ const translations = {
       'This client is an old version. Current: v{current}. New: v{latest}. Click this notification to open GitHub and download the new version.',
     'bot.connected': 'Connected to the server.',
     'bot.kicked': 'Kicked: ',
-    'bot.connection': 'Connection: '
+    'bot.connection': 'Connection: ',
+    'nuker.quickRange': 'Quick range',
+    'nuker.quickRangeTip': 'Set the horizontal area size. Any value creates an NxN length/width area; height uses advanced up/down.',
+    'nuker.simpleRange': 'Simple range',
+    'nuker.advancedRange': 'Advanced directional range',
+    'nuker.up': 'Up',
+    'nuker.down': 'Down',
+    'nuker.left': 'Left',
+    'nuker.right': 'Right',
+    'nuker.forward': 'Forward',
+    'nuker.back': 'Back',
+    'nuker.blockFilter': 'Block filter',
+    'nuker.blockFilterTip': 'Blacklist protects listed blocks. Whitelist breaks only listed blocks.',
+    'nuker.targetMode': 'Target mode',
+    'nuker.blacklistMode': 'Blacklist: ignore listed blocks',
+    'nuker.whitelistMode': 'Whitelist: break only listed blocks',
+    'nuker.blocks': 'Blocks',
+    'nuker.blocksPlaceholder': 'dirt,glass,stone',
+    'nuker.blocksTip': 'Comma separated block IDs. Example: dirt,grass_block,stone',
+    'nuker.speed': 'Speed',
+    'nuker.speedTip': 'Fastplace breaks the whole selected range in one burst. Blocks/tick is used only when Fastplace is off.',
+    'nuker.blocksPerTick': 'Blocks/tick',
+    'nuker.blocksPerTickPlaceholder': 'empty = all in range',
+    'nuker.fastplace': 'Fastplace',
+    'nuker.rotateHead': 'Head rotate',
+    'nuker.toggle': 'Toggle',
+    'nuker.start': 'Start',
+    'nuker.stop': 'Stop'
   },
   tr: {
     'splash.subtitle': 'Bot konsolu hazırlanıyor',
@@ -85,7 +112,34 @@ const translations = {
       'Şu an bu client eski bir sürüm. Mevcut: v{current}. Yeni: v{latest}. Yeni sürüm için GitHub sayfasına yönlendirmeme izin vermek istersen bildirime tıkla.',
     'bot.connected': 'Sunucuya bağlandı.',
     'bot.kicked': 'Atıldı: ',
-    'bot.connection': 'Bağlantı: '
+    'bot.connection': 'Bağlantı: ',
+    'nuker.quickRange': 'Hızlı menzil',
+    'nuker.quickRangeTip': 'Yatay alan boyutunu ayarlar. Hangi değer seçilirse o değer kadar NxN uzunluk/genişlik alanı olur; yükseklik gelişmiş yukarı/aşağı ayarını kullanır.',
+    'nuker.simpleRange': 'Tek menzil',
+    'nuker.advancedRange': 'Gelişmiş yön menzili',
+    'nuker.up': 'Yukarı',
+    'nuker.down': 'Aşağı',
+    'nuker.left': 'Sol',
+    'nuker.right': 'Sağ',
+    'nuker.forward': 'İleri',
+    'nuker.back': 'Geri',
+    'nuker.blockFilter': 'Blok filtresi',
+    'nuker.blockFilterTip': 'Blacklist listedeki blokları korur. Whitelist sadece listedeki blokları kırar.',
+    'nuker.targetMode': 'Hedef modu',
+    'nuker.blacklistMode': 'Blacklist: listedeki blokları kırma',
+    'nuker.whitelistMode': 'Whitelist: sadece listedeki blokları kır',
+    'nuker.blocks': 'Bloklar',
+    'nuker.blocksPlaceholder': 'dirt,glass,stone',
+    'nuker.blocksTip': 'Virgülle ayrılmış blok IDleri. Örnek: dirt,grass_block,stone',
+    'nuker.speed': 'Hız',
+    'nuker.speedTip': 'Fastplace seçili menzilin tamamını tek dalgada kırar. Blok/tick sadece Fastplace kapalıyken kullanılır.',
+    'nuker.blocksPerTick': 'Blok/tick',
+    'nuker.blocksPerTickPlaceholder': 'boş = menzildeki hepsi',
+    'nuker.fastplace': 'Fastplace',
+    'nuker.rotateHead': 'Kafa döndürme',
+    'nuker.toggle': 'Aç/Kapat',
+    'nuker.start': 'Başlat',
+    'nuker.stop': 'Durdur'
   }
 }
 
@@ -539,7 +593,8 @@ window.addEventListener('DOMContentLoaded', () => {
   window.electron?.ipcRenderer.on('setConfig', (event, config, version) => {
     setConfigValues(config)
     applyUISettings()
-    document.getElementById('versionString').innerHTML = `v${version.current} Fixed`
+    document.getElementById('versionString').innerHTML = `v${version.current}`
+    syncNukerRangeLabels()
   })
 
   window.electron?.ipcRenderer.on('fileSelected', (event, id, payload) => {
@@ -565,6 +620,7 @@ window.addEventListener('DOMContentLoaded', () => {
   )
   valueElements.forEach((select) => {
     select.addEventListener('change', valueChange)
+    if (select.type === 'range') select.addEventListener('input', valueChange)
   })
   document.getElementById('webhookLink')?.addEventListener('input', valueChange)
 
@@ -687,6 +743,7 @@ function valueChange(event) {
   const selectedValue = event.target.value
   const selectId = event.target.id
   window.electron?.ipcRenderer.send('setConfig', 'value', selectId, selectedValue)
+  if (selectId.startsWith('nukerRange')) syncNukerRangeLabels()
 
   switch (selectId) {
     case 'nameType':
@@ -704,6 +761,23 @@ function valueChange(event) {
       break
     default:
   }
+}
+
+function syncNukerRangeLabels() {
+  const ids = [
+    'nukerRange',
+    'nukerRangeUp',
+    'nukerRangeDown',
+    'nukerRangeLeft',
+    'nukerRangeRight',
+    'nukerRangeForward',
+    'nukerRangeBack'
+  ]
+  ids.forEach((id) => {
+    const input = document.getElementById(id)
+    const label = document.getElementById(`${id}Value`)
+    if (input && label) label.textContent = input.value || '0'
+  })
 }
 
 function enableAllWebhookOptions() {
@@ -1035,6 +1109,10 @@ function translateExactText(text) {
 function applyTranslations() {
   document.querySelectorAll('[data-i18n]').forEach((element) => {
     element.textContent = t(element.dataset.i18n)
+  })
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+    element.placeholder = t(element.dataset.i18nPlaceholder)
   })
 
   const candidates = document.querySelectorAll('p, button, label, li, option, .input-file')

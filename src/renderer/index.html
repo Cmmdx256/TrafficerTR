@@ -524,108 +524,137 @@
               </div>
               <div id="nuker" class="control-tab" style="display: none;">
                 <p class="text">Nuker</p>
-                <p class="text-sm-2 mu-2" data-i18n="nuker.next">Coming in the next version</p>
-              </div>
-
-              <div id="nuker" class="control-tab" style="display: none;">
-                <p class="text">Nuker</p>
                 <div class="mu-2">
 
-                  <div class="space-h-f">
-                    <p class="text-sm">Range</p>
+                  <div class="nuker-panel">
+                    <p class="text-sm" data-i18n="nuker.quickRange">Quick range</p>
+                    <p class="tip-sm" data-i18n="nuker.quickRangeTip">Set the horizontal area size. Any value creates an NxN length/width area; height uses advanced up/down.</p>
                   </div>
 
-                  <div class="slidecontainer space-h">
-                    <p class="text-sm-2">Up</p>
+                  <div class="slidecontainer space-h mu-2">
+                    <p class="text-sm-2" data-i18n="nuker.simpleRange">Simple range</p>
+                    <div class="flex">
+                      <p class="text-sm-2 pl-2">0</p>
+                      <input id="nukerRange" type="range" min="0" max="8" value="0" class="slider">
+                      <p class="text-sm-2 pl-2">8</p>
+                      <p id="nukerRangeValue" class="text-sm-2 pl-2">0</p>
+                    </div>
+                  </div>
+
+                  <details class="nuker-details mu-2">
+                    <summary class="text-sm" data-i18n="nuker.advancedRange">Advanced directional range</summary>
+
+                  <div class="slidecontainer space-h mu-2">
+                    <p class="text-sm-2" data-i18n="nuker.up">Up</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeUp" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeUpValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
 
                   <div class="slidecontainer space-h mu-2">
-                    <p class="text-sm-2">Down</p>
+                    <p class="text-sm-2" data-i18n="nuker.down">Down</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeDown" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeDownValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
 
                   <div class="slidecontainer space-h mu-2">
-                    <p class="text-sm-2">Left</p>
+                    <p class="text-sm-2" data-i18n="nuker.left">Left</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeLeft" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeLeftValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
 
                   <div class="slidecontainer space-h mu-2">
-                    <p class="text-sm-2">Right</p>
+                    <p class="text-sm-2" data-i18n="nuker.right">Right</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeRight" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeRightValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
 
                   <div class="slidecontainer space-h mu-2">
-                    <p class="text-sm-2">Forward</p>
+                    <p class="text-sm-2" data-i18n="nuker.forward">Forward</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeForward" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeForwardValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
 
                   <div class="slidecontainer space-h mu-2">
-                    <p class="text-sm-2">Back</p>
+                    <p class="text-sm-2" data-i18n="nuker.back">Back</p>
                     <div class="flex">
                       <p class="text-sm-2 pl-2">0</p>
                       <input id="nukerRangeBack" type="range" min="0" max="6" value="0" class="slider">
                       <p class="text-sm-2 pl-2">6</p>
+                      <p id="nukerRangeBackValue" class="text-sm-2 pl-2">0</p>
                     </div>
                   </div>
+                  </details>
 
-                  <div class="mu-2 space-h-f">
-                    <p class="text-sm">Settings</p>
+                  <div class="nuker-panel mu-2">
+                    <p class="text-sm" data-i18n="nuker.blockFilter">Block filter</p>
+                    <p class="tip-sm" data-i18n="nuker.blockFilterTip">Blacklist protects listed blocks. Whitelist breaks only listed blocks.</p>
                   </div>
 
                   <div class="flex mu-2">
-                    <p class="text-sm-2">Target mode</p>
+                    <p class="text-sm-2" data-i18n="nuker.targetMode">Target mode</p>
                     <select id="nukerTargetMode">
-                      <option value="blacklist">Blacklist</option>
-                      <option value="whitelist">Whitelist</option>
+                      <option value="blacklist" data-i18n="nuker.blacklistMode">Blacklist: ignore listed blocks</option>
+                      <option value="whitelist" data-i18n="nuker.whitelistMode">Whitelist: break only listed blocks</option>
                     </select>
                   </div>
 
                   <div class="flex mu-2">
-                    <p class="text-sm-2 pr-4">Blocks</p>
-                    <input id="nukerBlocks" type="text" placeholder="dirt,glass,stone">
+                    <p class="text-sm-2 pr-4" data-i18n="nuker.blocks">Blocks</p>
+                    <input id="nukerBlocks" type="text" placeholder="dirt,glass,stone" data-i18n-placeholder="nuker.blocksPlaceholder">
+                  </div>
+                  <p class="tip-sm mu-1" data-i18n="nuker.blocksTip">Comma separated block IDs. Example: dirt,grass_block,stone</p>
+
+                  <div class="nuker-panel mu-2">
+                    <p class="text-sm" data-i18n="nuker.speed">Speed</p>
+                    <p class="tip-sm" data-i18n="nuker.speedTip">If Blocks/tick is empty, every collected block in range is sent in one burst.</p>
                   </div>
 
                   <div class="flex mu-2">
-                    <p class="text-sm-2 pr-4">Blocks/tick</p>
-                    <input id="nukerBlocksPerTick" type="number" placeholder="1 (ticks)">
+                    <p class="text-sm-2 pr-4" data-i18n="nuker.blocksPerTick">Blocks/tick</p>
+                    <input id="nukerBlocksPerTick" type="number" placeholder="empty = all in range" data-i18n-placeholder="nuker.blocksPerTickPlaceholder">
                   </div>
 
                   <label class="containerCheckbox mu-2">
-                    Rotate
-                    <input id="nukerRotate" type="checkbox">
+                    <span data-i18n="nuker.fastplace">Fastplace</span>
+                    <input id="nukerFastPlace" type="checkbox" checked>
                     <span class="checkmark"></span>
                   </label>
 
                   <label class="containerCheckbox mu-2">
-                    Toggle
+                    <span data-i18n="nuker.rotateHead">Head rotate</span>
+                    <input id="nukerRotateHead" type="checkbox">
+                    <span class="checkmark"></span>
+                  </label>
+
+                  <label class="containerCheckbox mu-2">
+                    <span data-i18n="nuker.toggle">Toggle</span>
                     <input id="nukerToggle" type="checkbox">
                     <span class="checkmark"></span>
                   </label>
 
                   <div class="space-h-f mu-2">
-                    <button id="btnNukerStart">Start</button>
-                    <button id="btnNukerStop">Stop</button>
+                    <button id="btnNukerStart" data-i18n="nuker.start">Start</button>
+                    <button id="btnNukerStop" data-i18n="nuker.stop">Stop</button>
                   </div>
 
                 </div>
