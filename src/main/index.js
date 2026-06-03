@@ -22,6 +22,7 @@ import {
 import { applyElyByAuth } from './js/misc/customAuth'
 import { createGeminiMinecraftController } from './js/geminiController'
 import { createMobilityEngine } from './js/mobilityEngine'
+import { createTrafficerAIV2Runtime } from './js/ai/v2/runtime'
 import EventEmitter from 'node:events'
 const Store = require('electron-store')
 const mineflayer = require('mineflayer')
@@ -135,7 +136,9 @@ const recentGlobalServerChats = []
 const SERVER_CHAT_DEDUPE_MS = 1800
 const recentGeminiChatInputs = new Map()
 const recentGeminiChatReplies = new Map()
+const recentBotAiOutputs = []
 const GEMINI_CHAT_DEDUPE_MS = 3500
+const BOT_AI_OUTPUT_DEDUPE_MS = 5000
 
 const webhookColors = {
   success: 0x3fbf73,
@@ -349,6 +352,29 @@ function rememberRecentServerChat(sender, message, recentChats) {
     at: Date.now()
   })
   if (recentChats.length > 12) recentChats.shift()
+}
+
+function rememberBotAiOutput(botName, message) {
+  recentBotAiOutputs.push({
+    bot: normalizeChatLine(botName),
+    message: normalizeChatLine(message),
+    at: Date.now()
+  })
+  if (recentBotAiOutputs.length > 20) recentBotAiOutputs.shift()
+}
+
+function isRecentBotAiOutput(botName, rawMessage) {
+  const now = Date.now()
+  const bot = normalizeChatLine(botName)
+  const message = normalizeChatLine(rawMessage)
+  for (let index = recentBotAiOutputs.length - 1; index >= 0; index--) {
+    if (now - recentBotAiOutputs[index].at > BOT_AI_OUTPUT_DEDUPE_MS) {
+      recentBotAiOutputs.splice(index, 1)
+    }
+  }
+  return recentBotAiOutputs.some((entry) => {
+    return entry.bot === bot && entry.message && message.includes(entry.message)
+  })
 }
 
 function claimServerChatLog(sender, message) {
@@ -1522,6 +1548,7 @@ function newBot(options) {
   let playerGotoTimer
   let aiModeAnnounced = false
   let aiThinkBusy = false
+  let aiHardStopToken = 0
   let aiLastThink = 0
   let aiSpawnReady = false
   let aiRuntimeEnabled = false
@@ -1545,6 +1572,39 @@ function newBot(options) {
     }
   })
   aiCore.setMobility(mobility)
+  const aiRuntime = createTrafficerAIV2Runtime({
+    bot,
+    mobility,
+    memory: aiCore.memory,
+    sendEvent: (message) => sendEvent(bot?._client?.username || options.username, 'chat', message),
+    adapters: {
+      comeToPlayer: (args = {}, context = {}) =>
+        comeToPlayerIntent(args.player || args.name || args.target || context.username, args.near || 2),
+      followPlayer: (args = {}, context = {}) =>
+        comeToPlayerIntent(args.player || args.name || args.target || context.username, args.near || 2, {
+          timeoutMs: 60000
+        }),
+      protectPlayer: (args = {}, context = {}) =>
+        protectPlayerIntent(args.player || args.name || args.target || context.username),
+      gatherWood: (args = {}) => mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96),
+      gatherResource: (args = {}) =>
+        mineResourceWithBrain(args.resource || args.target || args.block || 'wood', args),
+      craftItem: (args = {}) => craftItemByNames([args.item || args.target].filter(Boolean), args.count || 1),
+      smeltItem: (args = {}) => smeltAvailableItems(args.item || args.target || args.goal || 'ore'),
+      eatFood: () => eatIfHungry(),
+      sleep: (args = {}) => sleepInNearestBed(args.range || 32),
+      explore: (args = {}) => exploreForObjective(args.reason || args.target || 'v2 exploration'),
+      giveItems: (args = {}, context = {}) =>
+        tossInventoryToPlayer(args.player || args.name || context.username, args.item || args.target),
+      makeCraftingTableForPlayer: (args = {}, context = {}) =>
+        makeCraftingTableForPlayer(args.player || context.username, args.logs || args.count || 3),
+      buildStructure: (args = {}) => buildStarterHouse(args),
+      buildHouse: (args = {}) => buildStarterHouse(args),
+      farmCrop: (args = {}) => farmNearbyCrops(args),
+      tradeVillager: (args = {}) => tradeWithNearestVillager(args)
+    }
+  })
+  aiCore.setAgentRuntime(aiRuntime)
   const aiMemory = {
     owner: undefined,
     currentTask: 'idle',
@@ -1637,6 +1697,7 @@ function newBot(options) {
   })
   bot.on('chat', (username, message) => {
     sendServerChat(bot._client.username, username, message, recentServerChats)
+    if (getAiMentionNames().includes(normalizeCommandText(username))) return
     aiCore.memory.rememberPlayer(username, {
       interactions: (aiCore.memory.state.players[username]?.interactions || 0) + 1
     })
@@ -1744,7 +1805,12 @@ function newBot(options) {
     try {
       const movements = new Movements(bot)
       movements.canDig = true
+      movements.allowParkour = false
+      movements.allowSprinting = true
       movements.allow1by1towers = false
+      movements.dontCreateFlow = true
+      movements.liquidCost = 30
+      movements.entityCost = 2
       bot.pathfinder.setMovements(movements)
       pathfinderReady = true
       console.log('[MOBILITY] Pathfinder loaded', {
@@ -2306,6 +2372,11 @@ function newBot(options) {
       tas: ['stone'],
       cobble: ['cobblestone'],
       cobblestone: ['cobblestone'],
+      grass: ['grass', 'short_grass', 'tall_grass', 'fern', 'large_fern', 'dead_bush'],
+      ot: ['grass', 'short_grass', 'tall_grass', 'fern', 'large_fern', 'dead_bush'],
+      cimen: ['grass', 'short_grass', 'tall_grass', 'fern', 'large_fern'],
+      plant: ['grass', 'short_grass', 'tall_grass', 'fern', 'large_fern', 'dead_bush'],
+      bitki: ['grass', 'short_grass', 'tall_grass', 'fern', 'large_fern', 'dead_bush'],
       log: [
         'oak_log',
         'spruce_log',
@@ -2374,7 +2445,8 @@ function newBot(options) {
   }
 
   function findNearestBlocks(blockName, maxDistance = 64, count = 1, ignoredKeys = new Set()) {
-    const { names, types } = getBlockTypes(blockName)
+    const miningTarget = normalizeMiningRequestTarget(blockName)
+    const { names, types } = getBlockTypes(miningTarget)
     if (types.length === 0) return { error: `Pathfinder: unknown block ${blockName || ''}` }
     const typeSet = new Set(types)
 
@@ -2391,12 +2463,98 @@ function newBot(options) {
         (block) => block && block.name !== 'air' && !ignoredKeys.has(positionKey(block.position))
       )
       .sort(
-        (a, b) =>
-          bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+        (a, b) => rankMineBlock(b, miningTarget) - rankMineBlock(a, miningTarget)
       )
       .slice(0, clampNumber(count, 1, 8, 1))
 
     return { names, blocks }
+  }
+
+  function normalizeMiningRequestTarget(target) {
+    const normalized = normalizeBlockName(target)
+    if (!normalized) return 'wood'
+    if (['ore', 'ores', 'maden', 'madenler', 'valuable', 'degerli_maden'].includes(normalized)) return 'ore'
+    return aiRuntime?.brain?.normalizeMiningResource?.(normalized) || normalized
+  }
+
+  function rankMineBlock(block, target = 'ore') {
+    if (!block?.position) return -Infinity
+    const distance = bot.entity?.position?.distanceTo?.(block.position) ?? 999
+    const oreScore = aiRuntime?.brain?.rankOreBlock?.(block.name, {
+      inventory: bot.inventory?.items?.() || [],
+      inNether: bot.game?.dimension === 'the_nether'
+    })
+    const priority = Number.isFinite(oreScore) && oreScore !== 0 ? oreScore : fallbackMinePriority(block.name, target)
+    const dangerPenalty = isDangerNear(block.position) ? 35 : 0
+    return priority * 10 - distance - dangerPenalty
+  }
+
+  function fallbackMinePriority(blockName, target = 'ore') {
+    const name = normalizeBlockName(blockName)
+    if (!/_ore$|ancient_debris/.test(name) && normalizeMiningRequestTarget(target) !== 'ore') return 30
+    if (name.includes('ancient_debris')) return 110
+    if (name.includes('diamond')) return 100
+    if (name.includes('iron')) return 90
+    if (name.includes('emerald')) return 70
+    if (name.includes('gold')) return 60
+    if (name.includes('coal')) return 55
+    if (name.includes('redstone')) return 50
+    if (name.includes('lapis')) return 45
+    if (name.includes('quartz')) return 40
+    if (name.includes('copper')) return 35
+    return 25
+  }
+
+  function isDangerNear(position, radius = 2) {
+    if (!position || !bot.blockAt) return false
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          const block = bot.blockAt(position.offset(dx, dy, dz))
+          if (block && /lava|fire|magma_block|cactus/.test(block.name)) return true
+        }
+      }
+    }
+    return false
+  }
+
+  async function mineResourceWithBrain(resource, args = {}) {
+    const target = normalizeMiningRequestTarget(resource)
+    const readiness = aiRuntime?.brain?.miningReadiness?.(target, bot.inventory?.items?.())
+    const requestedOre = target === 'ore' ? undefined : aiRuntime?.brain?.oreProfile?.(target)
+    const missing = requestedOre ? aiRuntime?.brain?.canMineOre?.(requestedOre, bot.inventory?.items?.()) : undefined
+    if (target === 'ore' && readiness?.ores?.length && !readiness.ores.some((ore) => ore.canMine)) {
+      const requiredTool = readiness.ores[0]?.missing?.requiredTool || 'wooden_pickaxe'
+      sendEvent(bot._client.username, 'chat', `Mining brain: mining needs ${requiredTool} before entering ore collection`)
+      return {
+        ok: false,
+        reason: `missing_required_pickaxe:${requiredTool}`,
+        requiredTool,
+        prerequisiteGoal: requiredTool,
+        readiness
+      }
+    }
+    if (missing?.ok === false) {
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `Mining brain: ${target} needs ${missing.requiredTool}, current ${missing.currentTool || 'none'}`
+      )
+      return {
+        ok: false,
+        reason: `missing_required_pickaxe:${missing.requiredTool}`,
+        requiredTool: missing.requiredTool,
+        prerequisiteGoal: missing.prerequisiteGoal,
+        readiness
+      }
+    }
+    const mineTarget = target === 'ore' ? chooseBestMineableOre(readiness) || 'ore' : target
+    return mineNearestBlocks(mineTarget, args.count || 1, args.range || 96)
+  }
+
+  function chooseBestMineableOre(readiness) {
+    const entry = readiness?.ores?.find((ore) => ore.canMine)
+    return entry?.name
   }
 
   function categorizeBlockForGemini(name) {
@@ -2517,10 +2675,24 @@ function newBot(options) {
   }
 
   function stopPathfinderTask(message = 'Pathfinder: stopped') {
+    requestAiHardStop(message)
+  }
+
+  function requestAiHardStop(message = 'AI: hard stopped') {
+    aiHardStopToken += 1
     clearInterval(playerGotoTimer)
     playerGotoTimer = undefined
     pathfinderBusy = false
-    bot.pathfinder?.stop()
+    nukerBusy = false
+    aiThinkBusy = false
+    aiMemory.currentTask = 'idle'
+    aiCore.debug.currentTask = undefined
+    aiCore.debug.executionState = 'IDLE'
+    bot.pathfinder?.setGoal?.(null)
+    bot.pathfinder?.stop?.()
+    bot.stopDigging?.()
+    bot.deactivateItem?.()
+    mobility?.hardStop?.('user_stop')
     resetAiBody()
     sendEvent(bot._client.username, 'chat', message)
   }
@@ -2576,16 +2748,18 @@ function newBot(options) {
     const nearDistance = clampNumber(distance, 1, 8, 2)
     const timeoutMs = clampNumber(options.timeoutMs, 3000, 120000, 45000)
     const startedAt = Date.now()
-    let lastTargetPosition
-    let lastGoalAt = 0
+    const stopToken = aiHardStopToken
 
     clearInterval(playerGotoTimer)
     pathfinderBusy = true
     aiMemory.currentTask = `come_to_player:${resolvedName}`
-    sendEvent(bot._client.username, 'chat', `Skill: coming to ${resolvedName}`)
+    sendEvent(bot._client.username, 'chat', `Skill: adaptive coming to ${resolvedName}`)
 
     try {
       while (Date.now() - startedAt < timeoutMs) {
+        if (stopToken !== aiHardStopToken) {
+          return { ok: false, reason: 'cancelled_by_stop', player: resolvedName }
+        }
         const entity = findPlayerEntity(resolvedName)
         if (!entity?.position) {
           return { ok: false, reason: `player_not_visible:${resolvedName}`, player: resolvedName }
@@ -2597,16 +2771,15 @@ function newBot(options) {
           return { ok: true, player: resolvedName, distance: distanceToPlayer }
         }
 
-        const targetMoved =
-          !lastTargetPosition || entity.position.distanceTo(lastTargetPosition) > 1.2
-        if (targetMoved || Date.now() - lastGoalAt > 2500) {
-          lastTargetPosition = entity.position.clone()
-          lastGoalAt = Date.now()
-          bot.pathfinder.setGoal(
-            new goals.GoalFollow(entity, nearDistance),
-            true
-          )
-        }
+        const reached = await mobility.reach(entity.position, {
+          near: nearDistance,
+          timeoutMs: Math.min(9000, Math.max(3500, timeoutMs - (Date.now() - startedAt))),
+          maxRecoveries: 5,
+          maxRouteAttempts: 2,
+          maxApproachAttempts: 3,
+          routeRadius: 8
+        })
+        if (reached?.ok) continue
 
         await delay(350)
       }
@@ -2843,7 +3016,10 @@ function newBot(options) {
 
     let beforeCount = 0
     try {
-      await mobility.reach(placement.reference.position, { near: 4, timeoutMs: 15000 })
+      const placementDistance = bot.entity?.position?.distanceTo?.(placement.reference.position) ?? Infinity
+      if (mobility.state !== 'RECOVERING' && placementDistance > 4.5) {
+        await mobility.reach(placement.reference.position, { near: 4, timeoutMs: 15000 })
+      }
       beforeCount = inventoryCountByNames([item.name])
       await bot.equip(item, 'hand')
       await bot.lookAt(placement.reference.position.offset(0.5, 0.5, 0.5), true)
@@ -2877,6 +3053,144 @@ function newBot(options) {
       sendEvent(bot._client.username, 'chat', `AI place error: ${error.message}`)
       return false
     }
+  }
+
+  async function buildStarterHouse(args = {}) {
+    const origin = bot.entity.position.floored()
+    const block = getBuildBlockItem(args.block || args.item)
+    if (!block) return { ok: false, reason: 'missing_build_blocks' }
+    const neededBlocks = 34
+    if (inventoryCountByNames([block.name]) < Math.min(neededBlocks, 12)) {
+      return { ok: false, reason: 'not_enough_build_blocks', block: block.name }
+    }
+
+    const placed = []
+    const footprint = []
+    for (let x = -2; x <= 2; x++) {
+      for (let z = -2; z <= 2; z++) {
+        const wall = Math.abs(x) === 2 || Math.abs(z) === 2
+        if (!wall) continue
+        for (let y = 0; y <= 2; y++) {
+          if (z === -2 && x === 0 && y <= 1) continue
+          footprint.push(origin.offset(x, y, z))
+        }
+      }
+    }
+    for (let x = -2; x <= 2; x++) {
+      for (let z = -2; z <= 2; z++) {
+        footprint.push(origin.offset(x, 3, z))
+      }
+    }
+
+    for (const position of footprint) {
+      if (inventoryCountByNames([block.name]) <= 0) break
+      const current = bot.blockAt(position)
+      if (!isReplaceableBlock(current)) continue
+      const ok = await placeBlockAutonomously(block.name, [
+        String(position.x),
+        String(position.y),
+        String(position.z)
+      ])
+      if (ok) placed.push(formatPosition(position))
+      await delay(80)
+    }
+
+    return placed.length > 0
+      ? (() => {
+          const location = formatPosition(origin)
+          aiCore.rememberDiscovery('location', 'starter_house', {
+            position: location,
+            placed: placed.length
+          })
+          aiRuntime?.memory?.rememberLocation?.('structure:starter_house', {
+            position: location,
+            placed: placed.length
+          })
+          return { ok: true, structure: 'starter_house', position: location, placed: placed.length }
+        })()
+      : { ok: false, reason: 'no_blocks_placed' }
+  }
+
+  function getCropSeedName(cropName) {
+    if (cropName === 'wheat') return 'wheat_seeds'
+    if (cropName === 'beetroots') return 'beetroot_seeds'
+    if (cropName === 'carrots') return 'carrot'
+    if (cropName === 'potatoes') return 'potato'
+    return undefined
+  }
+
+  function isMatureCrop(block) {
+    if (!block) return false
+    if (!['wheat', 'carrots', 'potatoes', 'beetroots'].includes(block.name)) return false
+    const props = typeof block.getProperties === 'function' ? block.getProperties() : {}
+    const age = Number(props?.age ?? block.metadata)
+    if (!Number.isFinite(age)) return true
+    return block.name === 'beetroots' ? age >= 3 : age >= 7
+  }
+
+  async function farmNearbyCrops(args = {}) {
+    const cropIds = ['wheat', 'carrots', 'potatoes', 'beetroots']
+      .map((name) => bot.registry.blocksByName[name]?.id)
+      .filter((id) => Number.isFinite(id))
+    if (cropIds.length === 0) return { ok: false, reason: 'crop_registry_missing' }
+    const crops = findNearestBlockMatching(cropIds, args.range || 48, args.count || 12).filter(isMatureCrop)
+    if (crops.length === 0) return { ok: false, reason: 'no_mature_crops_nearby' }
+
+    let harvested = 0
+    let replanted = 0
+    for (const crop of crops) {
+      const cropName = crop.name
+      const result = await digBlockAutonomously(crop)
+      if (!result?.mined) continue
+      harvested++
+      const seedName = getCropSeedName(cropName)
+      const seed = seedName && bot.inventory.items().find((item) => item.name === seedName)
+      const farmland = bot.blockAt(crop.position.offset(0, -1, 0))
+      if (seed && farmland?.name === 'farmland') {
+        try {
+          await bot.equip(seed, 'hand')
+          await bot.placeBlock(farmland, new Vec3(0, 1, 0))
+          replanted++
+        } catch {}
+      }
+      await delay(120)
+    }
+    return harvested > 0
+      ? { ok: true, harvested, replanted }
+      : { ok: false, reason: 'crop_harvest_failed' }
+  }
+
+  async function tradeWithNearestVillager(args = {}) {
+    const villager = Object.values(bot.entities || {})
+      .filter((entity) => entity?.position && entity.name === 'villager')
+      .sort((a, b) => bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position))[0]
+    if (!villager) return { ok: false, reason: 'villager_not_found' }
+
+    const reached = await mobility.reach(villager.position, { near: 3, timeoutMs: 18000 })
+    if (!reached?.ok) return { ok: false, reason: reached?.reason || 'villager_unreachable' }
+    if (typeof bot.openVillager !== 'function') return { ok: false, reason: 'villager_api_unavailable' }
+
+    const window = await bot.openVillager(villager).catch((error) => ({ error }))
+    if (!window || window.error) return { ok: false, reason: window?.error?.message || 'villager_open_failed' }
+    const trades = window.trades || []
+    const trade = trades.find((entry) => {
+      if (entry.disabled || entry.tradeDisabled) return false
+      const input1 = entry.inputItem1
+      const input2 = entry.inputItem2
+      const hasInput1 = !input1 || inventoryCountByNames([input1.name]) >= input1.count
+      const hasInput2 = !input2 || inventoryCountByNames([input2.name]) >= input2.count
+      if (args.item && entry.outputItem?.name !== normalizeBlockName(args.item)) return false
+      return hasInput1 && hasInput2
+    })
+    if (!trade) {
+      window.close?.()
+      return { ok: false, reason: 'no_affordable_trade' }
+    }
+    await window.trade(trade, 1).catch((error) => {
+      throw new Error(error.message)
+    })
+    window.close?.()
+    return { ok: true, traded: trade.outputItem?.name || 'unknown' }
   }
 
   async function breakBlockCommand(args) {
@@ -2917,9 +3231,13 @@ function newBot(options) {
     let minedCount = 0
     const skippedBlocks = new Set()
     let lastFailure = 'not_started'
+    const stopToken = aiHardStopToken
 
     try {
       while (minedCount < wantedCount && skippedBlocks.size < wantedCount * 12 + 16) {
+        if (stopToken !== aiHardStopToken) {
+          return { ok: false, reason: 'cancelled_by_stop', minedCount }
+        }
         if (String(aiMemory.currentTask || '').startsWith('gemini') && !isAiModeActive()) {
           sendEvent(bot._client.username, 'chat', 'AI mine: stopped because AI mode is off')
           return { ok: false, reason: 'ai_mode_off', minedCount }
@@ -4094,16 +4412,58 @@ function newBot(options) {
     aiMemory.lastExploreAt = Date.now()
     aiMemory.currentTask = `exploring: ${reason}`
 
-    const angle = Math.random() * Math.PI * 2
-    const distance = crypto.randomInt(24, 56)
-    const x = bot.entity.position.x + Math.cos(angle) * distance
-    const z = bot.entity.position.z + Math.sin(angle) * distance
-    const y = bot.entity.position.y
+    const target = chooseExplorationTarget(reason)
 
     sendEvent(bot._client.username, 'chat', `AI survival: exploring for ${reason}`)
-    await mobility.reach({ x, y, z }, { near: 4, timeoutMs: 25000 }).catch(() => {})
+    await mobility.reach(target, { near: 4, timeoutMs: 25000 }).catch(() => {})
     aiMemory.currentTask = 'idle'
     return true
+  }
+
+  function chooseExplorationTarget(reason = 'explore') {
+    const origin = bot.entity.position
+    const normalizedReason = normalizeCommandText(reason)
+    const preferredDistance = normalizedReason.includes('cave') || normalizedReason.includes('maden') ? 48 : 32
+    const directions = [
+      { x: 1, z: 0 },
+      { x: 0, z: 1 },
+      { x: -1, z: 0 },
+      { x: 0, z: -1 },
+      { x: 1, z: 1 },
+      { x: -1, z: 1 },
+      { x: 1, z: -1 },
+      { x: -1, z: -1 }
+    ]
+    const candidates = directions.map((direction) => {
+      const x = origin.x + direction.x * preferredDistance
+      const z = origin.z + direction.z * preferredDistance
+      const y = origin.y
+      return {
+        x,
+        y,
+        z,
+        score: scoreExplorationTarget({ x, y, z }, normalizedReason)
+      }
+    })
+    return candidates.sort((a, b) => b.score - a.score)[0] || {
+      x: origin.x + preferredDistance,
+      y: origin.y,
+      z: origin.z
+    }
+  }
+
+  function scoreExplorationTarget(position, reason = '') {
+    const base = new Vec3(Math.floor(position.x), Math.floor(position.y), Math.floor(position.z))
+    let score = 0
+    for (let y = -3; y <= 3; y++) {
+      const block = bot.blockAt(base.offset(0, y, 0))
+      if (!block) continue
+      if (block.boundingBox !== 'empty') score += 2
+      if (/lava|fire|cactus/.test(block.name)) score -= 30
+      if (reason.includes('cave') && block.name === 'air' && y < 0) score += 6
+      if (reason.includes('wood') && /log|leaves/.test(block.name)) score += 8
+    }
+    return score
   }
 
   function findNearestBlockMatching(matching, maxDistance = 32, count = 1) {
@@ -4224,7 +4584,9 @@ function newBot(options) {
   function buildGeminiObservation(username) {
     return {
       bot: bot.username,
+      botName: cleanPlayerName(getPrimaryBotName()),
       speaker: username,
+      playerName: cleanPlayerName(username),
       health: Math.round(bot.health || 0),
       food: bot.food,
       position: bot.entity?.position && formatPosition(bot.entity.position),
@@ -4277,6 +4639,7 @@ function newBot(options) {
         const reply = text.slice(0, 240)
         const replyKey = `${options.host || ''}:${bot.username}:${reply}`
         if (rememberRecent(recentGeminiChatReplies, replyKey, GEMINI_CHAT_DEDUPE_MS)) {
+          rememberBotAiOutput(getPrimaryBotName(), reply)
           bot.chat(reply)
         }
         return { ok: true }
@@ -4314,7 +4677,7 @@ function newBot(options) {
       case 'gather_wood':
         return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
       case 'gather_resource':
-        return mineNearestBlocks(args.resource || args.target || args.block || 'wood', args.count || 1, args.range || 96)
+        return mineResourceWithBrain(args.resource || args.target || args.block || 'wood', args)
       case 'explore_cave':
         return exploreForObjective(args.reason || 'find cave')
       case 'stop':
@@ -4385,6 +4748,11 @@ function newBot(options) {
     const args = action.args && typeof action.args === 'object' ? action.args : {}
     const target = action.target || args.target
     const player = resolveSpeakerTarget(args.player || args.name || target, username)
+    const v2CanHandle =
+      aiRuntime?.skills?.has?.(intent) || aiRuntime?.planner?.canPlan?.(intent)
+    if (v2CanHandle) {
+      return aiRuntime.executeIntent(intent, { ...args, target, player }, { username })
+    }
 
     switch (intent) {
       case 'come_to_player':
@@ -4402,7 +4770,7 @@ function newBot(options) {
         return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
       case 'gather_resource':
       case 'obtain_resource':
-        return mineNearestBlocks(args.resource || target || args.block || 'wood', args.count || 1, args.range || 96)
+        return mineResourceWithBrain(args.resource || target || args.block || 'wood', args)
       case 'explore_cave':
         return exploreForObjective(args.reason || 'find cave')
       case 'build_house':
@@ -4419,8 +4787,10 @@ function newBot(options) {
     const actionKey = `${action?.tool || 'unknown'}:${JSON.stringify(action?.args || {})}`
     let lastResult = { ok: false, reason: 'not_started' }
     let recoveryUsed
+    const stopToken = aiHardStopToken
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (stopToken !== aiHardStopToken) return { ok: false, reason: 'cancelled_by_stop', action }
       const before = buildActionFeedbackSnapshot()
       setExecutionStateForAction(action, attempt > 1 ? 'RECOVERING' : undefined)
       const candidate = attempt === 1 ? action : buildRecoveryAction(action, lastResult, attempt, username)
@@ -4546,8 +4916,8 @@ function newBot(options) {
         ? { ok: true, distance }
         : { ok: false, reason: 'follow_target_not_reached', distance }
     }
-    if (tool === 'mine_block') {
-      const target = args.block || args.name || args.target
+    if (tool === 'mine_block' || tool === 'gather_resource') {
+      const target = args.resource || args.block || args.name || args.target
       const inventoryChanged = inventoryTotal(after.inventory) > inventoryTotal(before.inventory)
       const hasTarget = target ? inventoryContainsTarget(after.inventory, target) : inventoryChanged
       return result?.ok || hasTarget || inventoryChanged
@@ -4582,6 +4952,12 @@ function newBot(options) {
     const args = action?.args || {}
     const reason = String(result?.reason || '').toLowerCase()
 
+    if (reason.includes('missing_required_pickaxe')) {
+      const requiredTool = result.requiredTool || reason.split(':')[1]
+      return requiredTool
+        ? { tool: requiredTool, args: { count: 1 }, reason: `recover mining progression tool ${requiredTool}` }
+        : undefined
+    }
     if (reason.includes('missing_logs') || reason.includes('wood') || reason.includes('log')) {
       return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover missing wood' }
     }
@@ -4609,10 +4985,10 @@ function newBot(options) {
         ? { tool: 'move_to', args: { ...args, near: clampNumber(args.near, 2, 8, 3) }, reason: 'retry movement with wider arrival radius' }
         : undefined
     }
-    if (tool === 'mine_block' || reason.includes('unreachable')) {
+    if (tool === 'mine_block' || tool === 'gather_resource' || reason.includes('unreachable')) {
       return attempt === 2
         ? { tool: 'look_at', args: { target: args.target || args.block || 'nearest' }, reason: 're-scan target before mining retry' }
-        : { tool: 'mine_block', args: { ...args, range: clampNumber(args.range, 32, 128, 96) }, reason: 'retry mining with wider search' }
+        : { tool, args: { ...args, range: clampNumber(args.range, 32, 128, 96) }, reason: 'retry mining with wider search' }
     }
     if (tool === 'craft_item' || reason.includes('missing_material') || reason.includes('no_recipe')) {
       return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover crafting materials' }
@@ -4643,7 +5019,7 @@ function newBot(options) {
     }
     const tool = String(action?.tool || '').toLowerCase()
     if (tool === 'move_to' || tool.includes('follow') || tool.includes('come_to_player')) aiCore.debug.executionState = 'MOVING'
-    else if (tool === 'mine_block') aiCore.debug.executionState = 'MINING'
+    else if (tool === 'mine_block' || tool === 'gather_resource') aiCore.debug.executionState = 'MINING'
     else if (tool === 'place_block' || tool === 'craft_item') aiCore.debug.executionState = 'BUILDING'
     else if (tool === 'attack_entity') aiCore.debug.executionState = 'COMBAT'
     else if (tool === 'explore') aiCore.debug.executionState = 'EXPLORING'
@@ -4692,6 +5068,12 @@ function newBot(options) {
     const inputKey = `${options.host || ''}:${getPrimaryBotName()}:${username}:${normalizeCommandText(message)}`
     if (!optionsOverride.bypassDedupe && !rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
       console.log('[GEMINI] Duplicate chat input ignored', { bot: bot.username, username, message })
+      return
+    }
+    const identityReply = getIdentityReply(username, message)
+    if (identityReply) {
+      rememberBotAiOutput(getPrimaryBotName(), identityReply)
+      bot.chat(identityReply)
       return
     }
     if (aiThinkBusy) {
@@ -4753,6 +5135,7 @@ function newBot(options) {
         const reply = String(decision.reply).slice(0, 240)
         const replyKey = `${options.host || ''}:${bot.username}:${reply}`
         if (rememberRecent(recentGeminiChatReplies, replyKey, GEMINI_CHAT_DEDUPE_MS)) {
+          rememberBotAiOutput(getPrimaryBotName(), reply)
           bot.chat(reply)
         }
       }
@@ -4762,7 +5145,10 @@ function newBot(options) {
           ).slice(0, 5)
         : []
       if (actions.length === 0) {
-        if (!decision.reply && optionsOverride.defaultReply) bot.chat(optionsOverride.defaultReply)
+        if (!decision.reply && optionsOverride.defaultReply) {
+          rememberBotAiOutput(getPrimaryBotName(), optionsOverride.defaultReply)
+          bot.chat(optionsOverride.defaultReply)
+        }
         else if (allowActions) {
           sendEvent(
             bot._client.username,
@@ -4916,7 +5302,17 @@ function newBot(options) {
       'beni koru',
       'protect me'
     ]
-    return actionPhrases.some((phrase) => text.includes(phrase)) || hasAnyWord(words, actionWords)
+    return actionPhrases.some((phrase) => text.includes(phrase)) || hasAnyWord(words, actionWords) || hasAnyStem(words, [
+      'kir',
+      'kes',
+      'kaz',
+      'topla',
+      'gel',
+      'takip',
+      'koru',
+      'ver',
+      'koy'
+    ])
   }
 
   function isMovementTool(tool) {
@@ -5017,24 +5413,69 @@ function newBot(options) {
     if (asksProtect) {
       return { tool: 'protect_player', args: { player: username }, reason: 'intent normalized from protect command' }
     }
-    if (action.parameters && !action.args) {
+    if (tool === 'come_to_player' || tool === 'come_to_me' || tool === 'go_to_player') {
       return {
-        ...action,
-        args
+        tool: 'come_to_player',
+        args: { ...args, player: resolveSpeakerTarget(args.player || semanticTarget, username), near: args.near || 2 },
+        reason: action.reason || 'come intent normalized'
       }
     }
-    if (action.intent && !action.tool) {
+    if (tool === 'follow_player' || tool === 'follow') {
       return {
-        tool,
-        args: {
-          ...args,
-          target: semanticTarget,
-          player: args.player || (semanticTarget === 'speaker' ? username : undefined)
-        },
-        reason: action.reason || 'intent object normalized'
+        tool: 'follow_player',
+        args: { ...args, player: resolveSpeakerTarget(args.player || semanticTarget, username), near: args.near || 2 },
+        reason: action.reason || 'follow intent normalized'
       }
     }
-    return action
+    if (tool === 'gather_resource' || tool === 'obtain_resource' || tool === 'mine_block') {
+      const resource = normalizeResourceTarget(args.resource || args.block || args.name || semanticTarget, message)
+      return {
+        tool: 'gather_resource',
+        args: { ...args, resource, target: resource, count: args.count || 1, range: args.range || 64 },
+        reason: action.reason || 'resource intent normalized'
+      }
+    }
+    if (tool === 'gather_wood') {
+      return {
+        tool: 'gather_wood',
+        args: { ...args, count: args.count || args.logs || 1, range: args.range || 96 },
+        reason: action.reason || 'wood intent normalized'
+      }
+    }
+    return {
+      ...action,
+      tool,
+      args: {
+        ...args,
+        target: semanticTarget,
+        player: args.player || (semanticTarget === 'speaker' ? username : undefined)
+      },
+      reason: action.reason || (action.intent ? 'intent object normalized' : action.reason)
+    }
+  }
+
+  function normalizeResourceTarget(target, message) {
+    const direct = normalizeBlockName(target)
+    if (direct && !['speaker', 'user', 'player', 'me', 'ben', 'bana', 'owner'].includes(direct)) {
+      if (/^(ore|ores|maden|madenler|degerli_maden)/.test(direct)) return 'ore'
+      if (/^(ot|cimen|bitki|grass|plant)/.test(direct)) return 'grass'
+      if (/^(tas|stone|cobble)/.test(direct)) return 'stone'
+      if (/^(toprak|dirt|ground)/.test(direct)) return 'dirt'
+      if (/^(kum|sand)/.test(direct)) return 'sand'
+      if (/^(odun|agac|wood|log)/.test(direct)) return 'wood'
+      if (/^(netherite|netherit|ancient)/.test(direct)) return 'ancient_debris'
+      return direct
+    }
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    if (hasAnyWord(words, ['ot', 'grass', 'cimen', 'Ã§imen', 'bitki', 'plant']) || hasAnyStem(words, ['ot', 'cimen', 'bitki'])) return 'grass'
+    if (hasAnyWord(words, ['kum', 'sand'])) return 'sand'
+    if (hasAnyWord(words, ['toprak', 'dirt', 'ground'])) return 'dirt'
+    if (hasAnyWord(words, ['tas', 'taÅŸ', 'stone', 'cobble'])) return 'stone'
+    if (hasAnyWord(words, ['odun', 'agac', 'aÄŸaÃ§', 'wood', 'log'])) return 'wood'
+    if (hasAnyWord(words, ['maden', 'madenler', 'ore', 'ores'])) return 'ore'
+    if (hasAnyWord(words, ['netherite', 'netherit', 'ancient'])) return 'ancient_debris'
+    return 'grass'
   }
 
   function isEmptyChatAction(action) {
@@ -5184,6 +5625,17 @@ function newBot(options) {
           : after('bak', 'look') || 'nearest'
       return { tool: 'look_at', args: { target }, reason: 'fallback look command' }
     }
+    if (hasAnyStem(words, ['kir', 'kaz', 'topla'])) {
+      return {
+        tool: 'gather_resource',
+        args: {
+          resource: normalizeResourceTarget(after('kir', 'kaz', 'topla') || words[0], message),
+          count: count || 1,
+          range: 64
+        },
+        reason: 'fallback gather/search command'
+      }
+    }
     if (hasAnyWord(words, ['kir', 'kır', 'kaz', 'dig', 'mine', 'break', 'topla', 'ara', 'bul'])) {
       return {
         tool: 'mine_block',
@@ -5209,6 +5661,10 @@ function newBot(options) {
 
   function hasAnyWord(words, candidates) {
     return candidates.some((candidate) => words.includes(candidate))
+  }
+
+  function hasAnyStem(words, candidates) {
+    return candidates.some((candidate) => words.some((word) => word.startsWith(candidate)))
   }
 
   function firstWordAfterAny(words, candidates) {
@@ -5331,6 +5787,20 @@ function newBot(options) {
     return String(text || '')
       .trim()
       .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ı/g, 'i')
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/Ä±/g, 'i')
+      .replace(/ÄŸ/g, 'g')
+      .replace(/Ã¼/g, 'u')
+      .replace(/ÅŸ/g, 's')
+      .replace(/Ã¶/g, 'o')
+      .replace(/Ã§/g, 'c')
       .replace(/[.,;:!?]/g, ' ')
       .replace(/\s+/g, ' ')
   }
@@ -5377,6 +5847,45 @@ function newBot(options) {
       .trim()
   }
 
+  function cleanPlayerName(name) {
+    return String(name || '')
+      .replace(/^<+|>+$/g, '')
+      .replace(/^@+/, '')
+      .trim()
+  }
+
+  function getIdentityReply(username, message) {
+    const text = normalizeCommandText(message)
+    const words = text.split(' ').filter(Boolean)
+    const asksBotName =
+      text.includes('adin ne') ||
+      text.includes('adÄ±n ne') ||
+      text.includes('adın ne') ||
+      text.includes('ismin ne') ||
+      text.includes('sen kimsin') ||
+      text.includes('who are you') ||
+      text.includes('what is your name')
+    const asksPlayerName =
+      text.includes('benim adim ne') ||
+      text.includes('benim adÄ±m ne') ||
+      text.includes('benim adım ne') ||
+      text.includes('ben kimim') ||
+      text.includes('who am i') ||
+      text.includes('what is my name')
+    if (!asksBotName && !asksPlayerName) return undefined
+
+    const botName = cleanPlayerName(getPrimaryBotName())
+    const playerName = cleanPlayerName(username)
+    if (asksBotName && asksPlayerName) return `Benim adim ${botName}. Senin adin ${playerName}.`
+    if (
+      asksPlayerName ||
+      (hasAnyWord(words, ['ben', 'benim']) && hasAnyWord(words, ['adim', 'adÄ±m', 'adım', 'kimim']))
+    ) {
+      return `Senin adin ${playerName}.`
+    }
+    return `Benim adim ${botName}.`
+  }
+
   function parseMessageStringForAi(rawMessage) {
     const message = readChatText(rawMessage).trim()
     if (!message) return undefined
@@ -5391,8 +5900,11 @@ function newBot(options) {
   }
 
   function handleAiMessageString(rawMessage) {
+    if (isRecentBotAiOutput(getPrimaryBotName(), rawMessage)) return
     const parsed = parseMessageStringForAi(rawMessage)
     if (!parsed) return
+    if (getAiMentionNames().includes(normalizeCommandText(parsed.username))) return
+    if (isRecentBotAiOutput(getPrimaryBotName(), parsed.message)) return
     if (!configBoolean('aiMode') || !hasBotMention(parsed.message)) return
     handleAiChat(parsed.username, parsed.message)
   }
@@ -5435,14 +5947,7 @@ function newBot(options) {
     } else {
       aiCore.stopAutonomy('manual_toggle_off')
       aiMemory.currentTask = 'off'
-      aiThinkBusy = false
-      clearInterval(playerGotoTimer)
-      playerGotoTimer = undefined
-      pathfinderBusy = false
-      bot.pathfinder?.setGoal?.(null)
-      bot.pathfinder?.stop?.()
-      bot.stopDigging?.()
-      resetAiBody()
+      requestAiHardStop('AI mode: hard stopped')
     }
     sendEvent(bot._client.username, 'chat', `AI mode: ${enabled ? 'on' : 'off'}`)
   }
@@ -5598,11 +6103,7 @@ function newBot(options) {
     }
 
     if (['dur', 'stop', 'iptal', 'cancel'].includes(words[0])) {
-      stopPathfinderTask('Gemini: stopped by chat command')
-      bot.stopDigging?.()
-      resetAiBody()
-      aiThinkBusy = false
-      sendEvent(bot._client.username, 'chat', 'Gemini: stopped')
+      requestAiHardStop('Gemini: hard stopped')
       return
     }
 
@@ -5764,7 +6265,9 @@ function newBot(options) {
       return
     }
     if (['gel', 'come'].includes(words[0])) {
-      goToMovingPlayer(username)
+      comeToPlayerIntent(username, 2, { timeoutMs: 45000 }).catch((error) => {
+        sendEvent(bot._client.username, 'chat', `Skill come error: ${error.message}`)
+      })
       return
     }
     if (
@@ -5772,18 +6275,14 @@ function newBot(options) {
       words.includes('follow') ||
       (words.includes('beni') && words.includes('izle'))
     ) {
-      const entity = findPlayerEntity(username)
-      if (!entity) {
-        sendEvent(bot._client.username, 'chat', `AI mode: player not visible ${username}`)
-        return
-      }
       const distance = words.map(Number).find((value) => Number.isFinite(value))
-      bot.pathfinder.setGoal(new goals.GoalFollow(entity, clampNumber(distance, 1, 8, 2)), true)
-      sendEvent(bot._client.username, 'chat', `AI mode: following ${username}`)
+      comeToPlayerIntent(username, clampNumber(distance, 1, 8, 2), { timeoutMs: 60000 }).catch((error) => {
+        sendEvent(bot._client.username, 'chat', `Skill follow error: ${error.message}`)
+      })
       return
     }
     if (['dur', 'stop', 'iptal', 'cancel'].includes(words[0])) {
-      stopPathfinderTask('AI mode: stopped')
+      requestAiHardStop('AI mode: hard stopped')
       return
     }
     if (['ver', 'give'].includes(words[0])) {
@@ -6039,13 +6538,10 @@ function newBot(options) {
       }
       case 'follow':
       case 'f': {
-        const entity = findPlayerEntity(args[1])
-        if (!entity) {
-          sendEvent(bot._client.username, 'chat', `Pathfinder: player not found ${args[1] || ''}`)
-          return
-        }
-        bot.pathfinder.setGoal(new goals.GoalFollow(entity, clampNumber(args[2], 1, 8, 2)), true)
-        sendEvent(bot._client.username, 'chat', `Pathfinder: following ${args[1]}`)
+        comeToPlayerIntent(args[1], clampNumber(args[2], 1, 8, 2), { timeoutMs: 60000 }).catch((error) => {
+          sendEvent(bot._client.username, 'chat', `Mobility follow error: ${error.message}`)
+        })
+        sendEvent(bot._client.username, 'chat', `Mobility: adaptive following ${args[1]}`)
         break
       }
       case 'followline':

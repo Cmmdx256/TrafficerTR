@@ -5,3 +5,4 @@ package-lock.json
 .DS_Store
 *.log*
 .vscode
+trafficer-ai-v2-memory.json

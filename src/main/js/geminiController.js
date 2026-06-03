@@ -20,8 +20,8 @@ export class GeminiMinecraftController {
     this.llm = createGeminiProvider({
       model: model || process.env.GEMINI_MODEL || 'gemini-flash-latest',
       apiKey: apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
-      timeoutMs: 25000,
-      retries: 1
+      timeoutMs: 45000,
+      retries: 2
     })
     this.debug = {
       currentGoal: 'chat_controlled',
@@ -89,6 +89,10 @@ export class GeminiMinecraftController {
 
   setMobility(mobility) {
     this.mobility = mobility
+  }
+
+  setAgentRuntime(runtime) {
+    this.agentRuntime = runtime
   }
 
   stopAutonomy(reason = 'manual_stop') {
@@ -168,6 +172,11 @@ export class GeminiMinecraftController {
       'protect_player',
       'gather_wood',
       'explore_cave',
+      'obtain_iron',
+      'obtain_diamond',
+      'build_house',
+      'farm_crop',
+      'trade_villager',
       'gather_resource',
       'stop',
       'craft_item',
@@ -202,11 +211,14 @@ export class GeminiMinecraftController {
         'If the player gives a command, choose intents to execute it.',
         'If the command is actionable, use intents instead of only replying.',
         'If the message is casual talk, a question, a greeting, or acknowledgement without an explicit Minecraft action command, use only say and do not move, follow, explore, mine, place, attack, or use tools.',
+        'For identity questions, never say the player has the bot name. Your bot name is observation.botName if provided. The speaker/player name is speaker. If asked "what is your name", answer with the bot name. If asked "what is my name", answer with the speaker name.',
         'Never move randomly. Only use movement-related intents when the player explicitly asks you to come, follow, go somewhere, walk, move, or explore.',
         'Never return an empty intent for a clear Minecraft command. If the request can be acted on, return one intent object.',
         'If the exact target is uncertain but the intent is clear, choose the closest safe tool and use semantic args from the message and observation.',
         'If you need to answer only, use intent "say".',
         'Prefer one primary intent. Use an intents array only when the player asked for a compound task.',
+        'Override older mining wording: for Turkish "odun kir/agac kes" return gather_wood, for "tas kir" return gather_resource target stone, and for "ot kir/cimen kir" return gather_resource target grass.',
+        'For mining intelligence requests like "maden kaz", "madenleri topla", "ore bul", return gather_resource with target "ore". For specific ores use target coal, copper, iron, gold, redstone, lapis, diamond, emerald, quartz, or ancient_debris.',
         'For Turkish commands: "odun kır", "ağaç kes", "agac kes" means mine_block with block "wood"; "taş kır" means mine_block with block "stone"; "keşfet", "kesfet", "explore" means explore.',
         'Use observation.local3dModel as your compact 3D world model. Interpret nearby trees, dirt, ores, stone, water, utility blocks, terrain, and structures from categories and coordinates.',
         'Do not treat natural-language object words as only exact Minecraft block IDs. For example, tree means nearby trunk plus leaves in local3dModel.',
@@ -367,6 +379,7 @@ export class GeminiMinecraftController {
         routes: 0,
         players: Object.keys(this.memory.state.players).length
       },
+      agentRuntime: this.agentRuntime?.status?.(),
       mobility: undefined,
       tools: this.toolNames(),
       events: this.memory.state.episodic.slice(-5).map((event) => event.type),

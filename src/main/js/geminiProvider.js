@@ -86,8 +86,8 @@ export class GeminiProvider extends LLMProvider {
     baseUrl = 'https://generativelanguage.googleapis.com/v1beta',
     model = 'gemini-flash-latest',
     fallbackModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-    timeoutMs = 30000,
-    retries = 1
+    timeoutMs = 45000,
+    retries = 2
   } = {}) {
     super({ model, timeoutMs })
     this.provider = 'gemini'
@@ -131,6 +131,18 @@ export class GeminiProvider extends LLMProvider {
       message.includes('try again later') ||
       message.includes('overloaded') ||
       message.includes('unavailable')
+    )
+  }
+
+  isRetryableException(error) {
+    const message = String(error?.message || error?.name || '').toLowerCase()
+    return (
+      message.includes('timeout') ||
+      message.includes('aborted') ||
+      message.includes('network') ||
+      message.includes('fetch failed') ||
+      error?.name === 'TimeoutError' ||
+      error?.name === 'AbortError'
     )
   }
 
@@ -239,12 +251,17 @@ export class GeminiProvider extends LLMProvider {
           lastError = error
           this.metrics.retries++
           console.log('[GEMINI] Request failed', error)
+          if (attempt < this.retries && this.isRetryableException(error)) {
+            await sleep(900 + attempt * 1400)
+            continue
+          }
+          if (this.isRetryableException(error)) break
         }
       }
     }
 
     this.metrics.failures++
-    this.metrics.lastError = lastError?.message || 'gemini_error'
+    this.metrics.lastError = explainGeminiError(lastError?.message || lastError?.name || 'gemini_error')
     return { ok: false, error: this.metrics.lastError, text: '', json: undefined }
   }
 

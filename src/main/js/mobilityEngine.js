@@ -30,6 +30,31 @@ const MOBILITY_STATES = {
   FAILED: 'FAILED'
 }
 
+const PATH_FAILURE_STATUSES = new Set([
+  'noPath',
+  'no_path',
+  'timeout',
+  'stuck',
+  'partial',
+  'goal_too_far',
+  'invalid'
+])
+
+const UNSAFE_DIG_BLOCKS = new Set([
+  'bedrock',
+  'barrier',
+  'end_portal_frame',
+  'end_portal',
+  'nether_portal',
+  'command_block',
+  'chain_command_block',
+  'repeating_command_block',
+  'chest',
+  'trapped_chest',
+  'ender_chest',
+  'shulker_box'
+])
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -42,6 +67,10 @@ function clamp(value, min, max, fallback) {
 
 function blockName(block) {
   return block?.name || 'air'
+}
+
+function normalizePathStatus(status) {
+  return String(status || '').trim()
 }
 
 function keyFromPosition(position) {
@@ -133,6 +162,11 @@ export class GeminiMobilityEngine {
     this.routeBlacklist = new Map()
     this.pathUpdate = undefined
     this.recoveryHistory = []
+    this.cancelToken = 0
+    this.lastWaterNavigateAt = 0
+    this.lastWaterAimKey = undefined
+    this.waterAimRepeats = 0
+    this.waterAimBlacklist = new Map()
     this.bindPathfinderEvents()
   }
 
@@ -141,7 +175,7 @@ export class GeminiMobilityEngine {
     this.pathEventsBound = true
     this.bot.on('path_update', (result) => {
       this.pathUpdate = {
-        status: result?.status,
+        status: normalizePathStatus(result?.status),
         pathLength: result?.path?.length,
         time: Date.now()
       }
@@ -232,6 +266,18 @@ export class GeminiMobilityEngine {
   reset() {
     MOVEMENT_CONTROLS.forEach((control) => this.bot.setControlState(control, false))
     this.emit('reset')
+  }
+
+  hardStop(reason = 'hard_stop') {
+    this.cancelToken += 1
+    this.bot.pathfinder?.setGoal?.(null)
+    this.bot.pathfinder?.stop?.()
+    this.bot.stopDigging?.()
+    this.reset()
+    this.activeSession = undefined
+    this.state = MOBILITY_STATES.IDLE
+    this.emit('hard_stop', { reason })
+    return { ok: true, reason }
   }
 
   async lookAt(position, force = true) {
@@ -360,6 +406,7 @@ export class GeminiMobilityEngine {
     return {
       ready: true,
       position: this.formatPosition(position),
+      target: normalizePosition(target),
       targetDistance,
       below: blockName(below),
       feet: blockName(feet),
@@ -392,7 +439,7 @@ export class GeminiMobilityEngine {
     const hasBoat = analysis.resources?.items?.some((item) => item.includes('boat'))
     if (analysis.threats?.length) solutions.push({ type: 'escape', score: 95 })
     if (analysis.hazard) solutions.push({ type: 'avoid_hazard', score: 90 })
-    if (analysis.pathStatus === 'noPath') solutions.push({ type: 'dynamic_replan', score: 88 })
+    if (this.isPathFailure(analysis.pathStatus)) solutions.push({ type: 'dynamic_replan', score: 88 })
     if (analysis.fallRisk > 3 && hasBlocks) solutions.push({ type: 'bridge_gap', score: 82 })
     if (analysis.water)
       solutions.push({ type: hasBoat ? 'boat_navigation' : 'water_navigation', score: 75 })
@@ -407,6 +454,21 @@ export class GeminiMobilityEngine {
     return solutions.sort((a, b) => b.score - a.score)
   }
 
+  isPathFailure(status) {
+    const normalized = normalizePathStatus(status)
+    return PATH_FAILURE_STATUSES.has(normalized) || /no.?path|timeout|stuck|partial|fail/i.test(normalized)
+  }
+
+  selectRecoverySolution(analysis = {}) {
+    const solutions = this.evaluateSolutions(analysis)
+    const recent = this.recoveryHistory.slice(-5).map((entry) => entry.type)
+    return (
+      solutions.find((solution) => recent.filter((type) => type === solution.type).length < 2) ||
+      solutions[0] ||
+      { type: 'smooth_path', score: 0 }
+    )
+  }
+
   async microCorrect(analysis = {}) {
     const now = Date.now()
     if (now - this.lastReactionAt < 250) return
@@ -414,26 +476,43 @@ export class GeminiMobilityEngine {
 
     if (analysis.hazard) {
       this.bot.setControlState('sprint', false)
-      await this.pulse(Math.random() < 0.5 ? 'left' : 'right', 220, { sneak: true })
+      await this.pulse(this.bestLateralDirection(), 220, { sneak: true })
       return
     }
 
     if (analysis.gapAhead) {
       this.bot.setControlState('sneak', true)
-      await this.pulse('jump', 120)
+      if ((analysis.resources?.buildBlocks || 0) > 0) await this.bridgeGap()
       this.bot.setControlState('sneak', false)
+      return
+    }
+
+    if (analysis.water) {
+      if (now - this.lastWaterNavigateAt > 1200) {
+        this.lastWaterNavigateAt = now
+        await this.navigateWater(analysis.target, { force: false })
+      }
       return
     }
 
     if (analysis.frontBlocked) {
       await this.pulse('jump', 160)
-      if (Math.random() < 0.35) await this.pulse(Math.random() < 0.5 ? 'left' : 'right', 180)
       return
     }
+  }
 
-    if (Math.random() < 0.18) {
-      await this.pulse(Math.random() < 0.5 ? 'left' : 'right', 90)
-    }
+  bestLateralDirection() {
+    const left = this.getBlockAtOffset(-1, 0, 0)
+    const right = this.getBlockAtOffset(1, 0, 0)
+    const leftBelow = this.getBlockAtOffset(-1, -1, 0)
+    const rightBelow = this.getBlockAtOffset(1, -1, 0)
+    const leftSafe = this.isReplaceable(left) && this.isSolidSafe(leftBelow)
+    const rightSafe = this.isReplaceable(right) && this.isSolidSafe(rightBelow)
+    if (leftSafe && !rightSafe) return 'left'
+    if (rightSafe && !leftSafe) return 'right'
+    const x = Math.floor(this.bot.entity?.position?.x || 0)
+    const z = Math.floor(this.bot.entity?.position?.z || 0)
+    return (Math.abs(x) + Math.abs(z)) % 2 === 0 ? 'left' : 'right'
   }
 
   updateStuckState() {
@@ -449,13 +528,13 @@ export class GeminiMobilityEngine {
   }
 
   async solveBlockedStep(analysis = {}) {
-    const solutions = this.evaluateSolutions(analysis)
-    const selected = solutions[0]?.type || 'smooth_path'
+    const selected = this.selectRecoverySolution(analysis).type || 'smooth_path'
     this.emit('solution_selected', { selected, analysis })
+    this.rememberRecovery(selected, analysis)
 
     if (selected === 'escape') return this.escapeDanger()
-    if (selected === 'boat_navigation') return this.navigateWater()
-    if (selected === 'water_navigation') return this.navigateWater()
+    if (selected === 'boat_navigation') return this.navigateWater(analysis.target, { force: true })
+    if (selected === 'water_navigation') return this.navigateWater(analysis.target, { force: true })
     if (selected === 'bridge_gap') return this.bridgeGap()
     if (selected === 'build_staircase') return this.buildStaircase()
     if (selected === 'dig_tunnel') return this.digTunnel()
@@ -463,6 +542,8 @@ export class GeminiMobilityEngine {
     if (selected === 'avoid_hazard') return this.avoidHazard()
     if (selected === 'tower_up') return this.towerUp()
     if (selected === 'dynamic_replan') return this.dynamicReplanNudge()
+    if (selected === 'find_alternate_route') return this.dynamicReplanNudge()
+    if (selected === 'climb') return this.climb()
 
     await this.pulse('jump', 180)
     return true
@@ -474,10 +555,10 @@ export class GeminiMobilityEngine {
     this.rememberRecovery('stuck', analysis)
     await this.solveBlockedStep(analysis)
     if (this.stuckTicks > 4) {
-      await this.pulse(Math.random() < 0.5 ? 'left' : 'right', 450)
+      await this.pulse(this.bestLateralDirection(), 450)
     }
     if (this.stuckTicks > 6) {
-      await this.helpers.placeBlock?.(undefined, ['under']).catch(() => false)
+      await this.safePlaceBlock(undefined, ['under'])
     }
   }
 
@@ -537,6 +618,63 @@ export class GeminiMobilityEngine {
     return candidates.sort((a, b) => this.distanceTo(a) - this.distanceTo(b)).slice(0, 12)
   }
 
+  routeCandidates(position, options = {}) {
+    const target = normalizePosition(position)
+    const current = normalizePosition(this.bot.entity?.position)
+    if (!target || !current) return []
+    const radius = clamp(options.routeRadius, 4, 24, 8)
+    const midpoint = {
+      x: Math.floor((current.x + target.x) / 2),
+      y: Math.floor((current.y + target.y) / 2),
+      z: Math.floor((current.z + target.z) / 2)
+    }
+    const directions = [
+      { x: 1, z: 0 },
+      { x: -1, z: 0 },
+      { x: 0, z: 1 },
+      { x: 0, z: -1 },
+      { x: 1, z: 1 },
+      { x: -1, z: 1 },
+      { x: 1, z: -1 },
+      { x: -1, z: -1 }
+    ]
+    return directions
+      .flatMap((direction) => {
+        const base = {
+          x: midpoint.x + direction.x * radius,
+          y: midpoint.y,
+          z: midpoint.z + direction.z * radius
+        }
+        return this.nearestStandPositions(base, 2)
+      })
+      .filter((candidate) => {
+        const key = keyFromPosition(candidate)
+        return (this.routeBlacklist.get(key) || 0) <= Date.now()
+      })
+      .sort((a, b) => this.distanceTo(a) + this.distanceBetween(a, target) - (this.distanceTo(b) + this.distanceBetween(b, target)))
+      .slice(0, 8)
+  }
+
+  nearestStandPositions(position, radius = 2) {
+    const target = normalizePosition(position)
+    if (!target) return []
+    const candidates = []
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        for (let dy = 3; dy >= -5; dy--) {
+          const candidate = { x: target.x + dx, y: target.y + dy, z: target.z + dz }
+          if (this.isSafeStandPosition(candidate)) candidates.push(candidate)
+        }
+      }
+    }
+    return candidates.sort((a, b) => this.distanceBetween(a, target) - this.distanceBetween(b, target)).slice(0, 3)
+  }
+
+  distanceBetween(a, b) {
+    if (!a || !b) return Infinity
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
+  }
+
   async dynamicReplanNudge() {
     this.rememberRecovery('dynamic_replan_nudge', this.analyzeEnvironment())
     this.bot.pathfinder?.setGoal?.(null)
@@ -581,6 +719,7 @@ export class GeminiMobilityEngine {
     let lastStrictPosition = this.bot.entity?.position?.clone()
     let lastRecoveryAt = 0
     let lastRecoveryReason = ''
+    const sessionCancelToken = this.cancelToken
 
     this.state = MOBILITY_STATES.PLANNING
     this.emit('plan_started', {
@@ -612,6 +751,13 @@ export class GeminiMobilityEngine {
     }
 
     while (Date.now() - startedAt < timeoutMs) {
+      if (sessionCancelToken !== this.cancelToken) {
+        this.bot.pathfinder?.setGoal?.(null)
+        this.reset()
+        this.activeSession = undefined
+        this.state = MOBILITY_STATES.IDLE
+        return { ok: false, reason: 'mobility_cancelled', moved: movedAtAll, state: 'CANCELLED' }
+      }
       const current = this.bot.entity?.position
       if (!current) break
       const distance = current.distanceTo(position)
@@ -681,7 +827,7 @@ export class GeminiMobilityEngine {
       await this.microCorrect(analysis)
       const stuckScore = this.updateStuckState()
       const pathfinderNoPath =
-        analysis.pathStatus === 'noPath' && now - lastGoalSetAt > Math.min(2500, watchdogMs)
+        this.isPathFailure(analysis.pathStatus) && now - lastGoalSetAt > Math.min(2500, watchdogMs)
       const watchdogExpired = now - lastMovementAt > watchdogMs
       const recoveryReason = pathfinderNoPath ? 'noPath' : watchdogExpired ? 'watchdog' : stuckScore >= 3 ? 'stuck' : ''
       const recoveryCooldownActive =
@@ -801,8 +947,31 @@ export class GeminiMobilityEngine {
     this.routeBlacklist.set(targetKey, Date.now() + 20000)
     await this.solveBlockedStep(this.analyzeEnvironment(position))
 
+    const routeCandidates = this.routeCandidates(position, options)
+    for (const route of routeCandidates.slice(0, clamp(options.maxRouteAttempts, 0, 5, 2))) {
+      const routeResult = await this.smoothNavigateTo(route, {
+        ...options,
+        near: Math.max(1, options.near || 3),
+        timeoutMs: options.routeTimeoutMs || 16000,
+        maxRecoveries: Math.max(2, Math.floor((options.maxRecoveries || 5) / 2))
+      })
+      attempts.push({ type: 'route', candidate: this.formatPosition(route), result: routeResult })
+      if (!routeResult?.ok) {
+        this.routeBlacklist.set(keyFromPosition(route), Date.now() + 20000)
+        continue
+      }
+      const finalFromRoute = await this.smoothNavigateTo(position, {
+        ...options,
+        timeoutMs: options.finalTimeoutMs || 12000,
+        maxRecoveries: 3
+      })
+      attempts.push({ type: 'route_final', result: finalFromRoute })
+      if (finalFromRoute?.ok) return { ...finalFromRoute, attempts }
+    }
+
     const candidates = this.approachCandidates(position, options.approachRadius || 5)
     for (const candidate of candidates.slice(0, clamp(options.maxApproachAttempts, 1, 6, 3))) {
+      await this.solveBlockedStep(this.analyzeEnvironment(candidate))
       const result = await this.smoothNavigateTo(candidate, {
         ...options,
         near: Math.max(1, options.near || 2),
@@ -838,22 +1007,22 @@ export class GeminiMobilityEngine {
       return false
     }
     this.bot.setControlState('sneak', true)
-    await this.helpers.placeBlock?.(undefined, ['front', 'under']).catch(() => false)
-    await this.pulse('forward', 450, { sneak: true })
+    const placed = await this.safePlaceBlock(undefined, ['front', 'under'])
+    if (placed) await this.pulse('forward', 450, { sneak: true })
     this.bot.setControlState('sneak', false)
-    this.gainSkill('bridging', 3)
-    this.recordSkill('bridging', true)
-    return true
+    if (placed) this.gainSkill('bridging', 3)
+    this.recordSkill('bridging', Boolean(placed))
+    return Boolean(placed)
   }
 
   async towerUp() {
     this.bot.setControlState('sneak', true)
     await this.pulse('jump', 220)
-    await this.helpers.placeBlock?.(undefined, ['under']).catch(() => false)
+    const placed = await this.safePlaceBlock(undefined, ['under'])
     this.bot.setControlState('sneak', false)
-    this.gainSkill('towering', 2)
-    this.recordSkill('towering', true)
-    return true
+    if (placed) this.gainSkill('towering', 2)
+    this.recordSkill('towering', Boolean(placed))
+    return Boolean(placed)
   }
 
   async buildStaircase(steps = 3) {
@@ -861,27 +1030,29 @@ export class GeminiMobilityEngine {
       this.recordSkill('stairBuilding', false)
       return false
     }
+    let placedCount = 0
     for (let index = 0; index < steps; index++) {
-      await this.helpers.placeBlock?.(undefined, ['front', 'under']).catch(() => false)
+      const placed = await this.safePlaceBlock(undefined, ['front', 'under'])
+      if (placed) placedCount++
       await this.pulse('jump', 160)
       await this.pulse('forward', 350, { sneak: true })
     }
-    this.gainSkill('stairBuilding', 3)
-    this.recordSkill('stairBuilding', true)
-    return true
+    if (placedCount > 0) this.gainSkill('stairBuilding', 3)
+    this.recordSkill('stairBuilding', placedCount > 0)
+    return placedCount > 0
   }
 
   async breakOrClimb() {
     const front = this.getFrontBlock(1, 0)
-    if (front && front.boundingBox !== 'empty') {
+    if (this.canDigForMobility(front)) {
       const hardness = Number.isFinite(front.hardness) ? front.hardness : 1
       if (hardness >= 0 && hardness < 12) {
         await this.bot.lookAt(front.position.offset(0.5, 0.5, 0.5), true).catch(() => {})
-        await this.bot
-          .dig(front, true)
-          .catch(() => this.helpers.digBlock?.(front).catch(() => false))
-        this.gainSkill('resourceMovement', 1)
-        return true
+        const dug = await this.safeDigBlock(front)
+        if (dug) {
+          this.gainSkill('resourceMovement', 1)
+          return true
+        }
       }
     }
     await this.towerUp()
@@ -889,31 +1060,159 @@ export class GeminiMobilityEngine {
   }
 
   async digTunnel(steps = 3) {
+    let cleared = 0
     for (let index = 0; index < steps; index++) {
       const feet = this.getFrontBlock(1, 0)
       const head = this.getFrontBlock(1, 1)
-      if (feet && feet.boundingBox !== 'empty') await this.helpers.digBlock?.(feet).catch(() => {})
-      if (head && head.boundingBox !== 'empty') await this.helpers.digBlock?.(head).catch(() => {})
+      if (this.canDigForMobility(feet) && (await this.safeDigBlock(feet))) cleared++
+      if (this.canDigForMobility(head) && (await this.safeDigBlock(head))) cleared++
       await this.pulse('forward', 450)
     }
-    this.gainSkill('tunnelMining', 2)
-    this.recordSkill('tunnelMining', true)
-    return true
+    if (cleared > 0) this.gainSkill('tunnelMining', 2)
+    this.recordSkill('tunnelMining', cleared > 0)
+    return cleared > 0
   }
 
-  async navigateWater() {
+  async navigateWater(targetPosition, options = {}) {
     const boat = this.bot.inventory?.items?.().find((item) => item.name.includes('boat'))
     if (boat) {
       await this.bot.equip(boat, 'hand').catch(() => {})
-      await this.helpers.placeBlock?.(boat.name, ['front']).catch(() => false)
+      await this.safePlaceBlock(boat.name, ['front'])
       this.emit('boat_attempt', { boat: boat.name })
     }
+    const current = this.bot.entity?.position
+    if (!current) return false
+    const target = toVec3(targetPosition)
+    let moved = false
+    const start = current.clone()
+    if (options.force) this.bot.pathfinder?.setGoal?.(null)
     this.bot.setControlState('sprint', true)
-    await this.pulse('forward', 900)
-    await this.pulse('jump', 240)
-    this.gainSkill('waterEscape', 2)
-    this.recordSkill('waterEscape', true)
-    return true
+    this.bot.setControlState('jump', true)
+    try {
+      for (let step = 0; step < (options.force ? 4 : 2); step++) {
+        const now = this.bot.entity?.position
+        if (!now) break
+        const feet = this.bot.blockAt(now)
+        const head = this.bot.blockAt(now.offset(0, 1, 0))
+        if (!WATER_BLOCKS.has(feet?.name) && !WATER_BLOCKS.has(head?.name)) break
+        const exit = this.findWaterExitCandidate(target)
+        const aim = this.chooseWaterAim(target, exit, now)
+        if (!aim) break
+        await this.bot.lookAt(aim.offset ? aim.offset(0.5, 0.35, 0.5) : aim, true).catch(() => {})
+        this.bot.setControlState('forward', true)
+        await sleep(options.force ? 360 : 260)
+        moved = true
+      }
+    } finally {
+      this.bot.setControlState('forward', false)
+      this.bot.setControlState('jump', false)
+      this.bot.setControlState('sprint', false)
+    }
+    const distanceMoved = this.bot.entity?.position ? this.bot.entity.position.distanceTo(start) : 0
+    const ok = moved && distanceMoved > 0.15
+    if (!ok) {
+      this.rememberRecovery('water_lock_break', { target: target && this.formatPosition(target) })
+      await this.pulse(this.bestLateralDirection(), 240, { sneak: true }).catch(() => false)
+    }
+    this.gainSkill('waterEscape', ok ? 2 : 0)
+    this.recordSkill('waterEscape', ok)
+    return ok
+  }
+
+  chooseWaterAim(target, exit, current) {
+    const now = Date.now()
+    for (const [key, until] of this.waterAimBlacklist.entries()) {
+      if (until <= now) this.waterAimBlacklist.delete(key)
+    }
+    const candidates = [target, exit, current?.offset?.(0, 0, 4)]
+      .filter(Boolean)
+      .filter((candidate) => !this.waterAimBlacklist.has(keyFromPosition(candidate)))
+      .sort((a, b) => {
+        if (!target) return current.distanceTo(a) - current.distanceTo(b)
+        return a.distanceTo(target) - b.distanceTo(target)
+      })
+    const aim = candidates[0]
+    if (!aim) return undefined
+    const key = keyFromPosition(aim)
+    if (key === this.lastWaterAimKey) this.waterAimRepeats += 1
+    else this.waterAimRepeats = 0
+    this.lastWaterAimKey = key
+    if (this.waterAimRepeats >= 3) {
+      this.waterAimBlacklist.set(key, Date.now() + 8000)
+      this.waterAimRepeats = 0
+      return candidates[1]
+    }
+    return aim
+  }
+
+  findWaterExitCandidate(preferredTarget, radius = 7) {
+    const origin = this.bot.entity?.position
+    if (!origin || !this.bot?.blockAt) return undefined
+    const preferred = toVec3(preferredTarget)
+    const candidates = []
+    const base = origin.floored ? origin.floored() : toVec3(origin).floored()
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        for (let dy = 2; dy >= -2; dy--) {
+          const position = base.offset(dx, dy, dz)
+          if (!this.isSafeStandPosition(position)) continue
+          const feet = this.bot.blockAt(position)
+          const below = this.bot.blockAt(position.offset(0, -1, 0))
+          if (WATER_BLOCKS.has(feet?.name) || WATER_BLOCKS.has(below?.name)) continue
+          candidates.push(position)
+        }
+      }
+    }
+    return candidates.sort((a, b) => {
+      const aScore = origin.distanceTo(a) + (preferred ? a.distanceTo(preferred) * 0.7 : 0)
+      const bScore = origin.distanceTo(b) + (preferred ? b.distanceTo(preferred) * 0.7 : 0)
+      return aScore - bScore
+    })[0]
+  }
+
+  async safePlaceBlock(itemName, args = ['front']) {
+    if (!this.helpers.placeBlock) return false
+    try {
+      const result = await Promise.race([
+        this.helpers.placeBlock(itemName, args),
+        sleep(7000).then(() => false)
+      ])
+      return Boolean(result)
+    } catch {
+      return false
+    }
+  }
+
+  async safeDigBlock(block) {
+    if (!block || block.boundingBox === 'empty') return false
+    if (!this.canDigForMobility(block)) return false
+    try {
+      const distance = this.bot.entity?.position?.distanceTo?.(block.position) ?? Infinity
+      if (this.state === MOBILITY_STATES.RECOVERING || distance <= 5) {
+        await this.bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true).catch(() => {})
+        if (typeof this.bot.canDigBlock === 'function' && !this.bot.canDigBlock(block)) return false
+        await this.bot.dig(block, true)
+        return true
+      }
+      if (this.helpers.digBlock) {
+        const result = await Promise.race([
+          this.helpers.digBlock(block),
+          sleep(9000).then(() => ({ mined: false, reason: 'mobility_dig_timeout' }))
+        ])
+        return Boolean(result?.mined || result === true)
+      }
+      await this.bot.dig(block, true)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  canDigForMobility(block) {
+    if (!block || block.boundingBox === 'empty') return false
+    if (HAZARD_BLOCKS.has(block.name) || UNSAFE_DIG_BLOCKS.has(block.name)) return false
+    const hardness = Number.isFinite(block.hardness) ? block.hardness : 1
+    return hardness >= 0 && hardness < 15
   }
 
   async avoidHazard() {
