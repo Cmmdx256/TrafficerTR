@@ -9,18 +9,31 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 
 ## Current Version
 
-- App build: TrafficerTR v1.2 Fixed
-- Package version: v1.2.0
+- App build: TrafficerTR v1.3
+- Package version: v1.3.0
 - AI provider: Gemini only
 - Default Gemini model: `gemini-flash-latest`
 - Legacy Ollama/local AI has been removed
+
+## Added In v1.3
+
+- Nuker is now active in the Botting controls.
+- Simple Nuker range slider: a value of `N` targets an `N x N` horizontal area around the bot.
+- Advanced Nuker height controls: Up and Down extend the selected area vertically.
+- Nuker block filter with blacklist and whitelist modes.
+- Fastplace mode for sending the whole selected range in one burst.
+- Optional head rotation toggle for normal dig mode.
+- Nuker Turkish/English UI translations.
+- Nuker no longer depends on the bot's look direction when Simple range is used.
+- Nuker avoids digging the bot's own support block in Simple range mode.
+- App title/version label updated to v1.3.
 
 ## Added In v1.2 Fixed
 
 - Gemini-only AI mode with API key field in the Botting AI section.
 - Gemini model selector with `gemini-flash-latest`.
 - Intent-based command layer for commands such as come, follow, protect, gather, explore, craft, eat, sleep, and stop.
-- Live player-follow intent: `BotName gel` and `BotName yani­ma gel` track the player entity instead of a stale coordinate.
+- Live player-follow intent: `BotName gel` and `BotName yanima gel` track the player entity instead of a stale coordinate.
 - Closed-loop action execution: execute, verify, recover, retry, and remember.
 - Mobility Engine v2 state tracking: `IDLE`, `PLANNING`, `MOVING`, `RECOVERING`, `COMPLETED`, `FAILED`.
 - Compact local 3D world snapshot for Gemini context.
@@ -49,11 +62,13 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 - Front/back block detection bug: the system now reads the block in front of the bot, not behind it.
 - Settings layout overlap and background GIF display issues.
 - About text and Turkish/English UI cleanup.
+- Nuker range collection incorrectly creating narrow tunnels instead of the selected square area.
+- Nuker Fastplace falling back to one-block digging because of stale `Blocks/tick` settings.
 
 ## Under Maintenance
 
 - AI Mode is still marked `BETA / UNDERMAINTENANCE` while the intent-driven autonomous agent layer is being stabilized.
-- Nuker is planned for a future version.
+- Nuker is active, but server anti-cheat/protocol behavior can still limit instant block breaking on some servers.
 - Some premium-labeled controls remain disabled.
 - Minecraft `26.1`, `26.1.1`, and `26.1.2` remain listed but disabled until native protocol support is reliable.
 
@@ -78,6 +93,7 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 
 - Start, stop, select, and monitor Minecraft bots.
 - Chat, movement, hotbar, inventory, Anti-AFK, KillAura, Pathfinder, and scripting controls.
+- Nuker with range, block filter, Fastplace, and optional head rotation controls.
 - Gemini AI mode controlled from Minecraft chat.
 - Multi-bot Gemini queue/rate-limit handling.
 - Proxy list management, proxy testing, and proxy logs.
@@ -122,6 +138,24 @@ cugus durum
 ```
 
 If the bot joined with another name, use that name instead.
+
+## Nuker Usage
+
+Open Botting > Nuker.
+
+- `Simple range`: horizontal area size. Example: `8` means an `8 x 8` area around the bot.
+- `Up` / `Down`: vertical height added to the selected area.
+- `Blacklist`: breaks everything except protected/default-listed blocks and blocks you list.
+- `Whitelist`: breaks only the block IDs you list.
+- `Fastplace`: sends all collected blocks in the selected range as a burst.
+- `Head rotate`: only affects normal dig mode when Fastplace is off.
+- `Blocks/tick`: only used when Fastplace is off.
+
+Block names must use Minecraft IDs such as:
+
+```text
+dirt,grass_block,stone,oak_log,sand
+```
 
 ## Intent-Based AI Design
 
