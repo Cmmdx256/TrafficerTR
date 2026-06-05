@@ -313,16 +313,24 @@ const textKeys = {
     'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.',
   'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
     'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.',
+  'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+    'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.',
   Added: 'Added',
   'Fixed / being fixed': 'Fixed / being fixed',
   'Under maintenance': 'Under maintenance',
   'In development': 'In development',
   'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
     'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
+  'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+    'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
   'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
+  'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
   'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.',
+  'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.',
   'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
     'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.',
   'Independent Minecraft bot client': 'Independent Minecraft bot client',
@@ -331,7 +339,9 @@ const textKeys = {
   Status: 'Status',
   'TrafficerTR v1.2': 'TrafficerTR v1.2',
   'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
+  'TrafficerTR v1.3': 'TrafficerTR v1.3',
   'Gemini AI, pathfinder, webhooks': 'Gemini AI, pathfinder, webhooks',
+  'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
   'Actively maintained': 'Actively maintained'
 }
 
@@ -504,16 +514,24 @@ const localizedText = {
     'Independent Minecraft bot client': 'Bağımsız Minecraft bot client',
     'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
       'TrafficerTR v1.2 Fixed; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
+    'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+      'TrafficerTR v1.3; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, Nuker menzil kontrolu, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
     Added: 'Eklenenler',
     'Fixed / being fixed': 'Duzeltilenler / duzeltilmeye calisilanlar',
     'Under maintenance': 'Bakimda',
     'In development': 'Gelistirme asamasinda',
     'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
       'Gemini API key alani, Gemini Flash Latest model secenegi, intent router, canli oyuncu takip intentleri, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
+    'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+      'Nuker menzil kontrolleri, blok filtre modlari, Fastplace toplu kirma, Gemini API key alani, Gemini Flash Latest model secenegi, intent router, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
       'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+      'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, Nuker kare alan kazma, eski Blocks/tick davranisi, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
       'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker sonraki surum icin planlaniyor.',
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
+      'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker aktif, ancak anlik blok kirma bazi sunucularda anti-cheat ve protokol davranisina bagli kalabilir.',
     'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
       'World Model kaliciligi, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine ve Reflection Engine gelistiriliyor.',
     Build: 'Derleme',
@@ -521,7 +539,9 @@ const localizedText = {
     Status: 'Durum',
     'TrafficerTR v1.2': 'TrafficerTR v1.2',
     'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
+    'TrafficerTR v1.3': 'TrafficerTR v1.3',
     'Gemini AI, pathfinder, webhooks': 'Gemini AI, yol bulucu, webhook',
+    'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
     'Actively maintained': 'Aktif olarak geliştiriliyor'
   }
 }
