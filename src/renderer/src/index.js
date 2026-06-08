@@ -404,22 +404,33 @@ const textKeys = {
     'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.',
   'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
     'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.',
+  'TrafficerTR v1.4 focuses on Gemini-only AI control, Realtime Mode visuals, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+    'TrafficerTR v1.4 focuses on Gemini-only AI control, Realtime Mode visuals, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.',
   Added: 'Added',
   'Fixed / being fixed': 'Fixed / being fixed',
+  'Realtime Mode': 'Realtime Mode',
   'Under maintenance': 'Under maintenance',
   'In development': 'In development',
   'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
     'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
   'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
     'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
+  'Nuker range controls, block filter modes, Fastplace burst breaking, Script AI, Aternos page, Hacking theme, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+    'Nuker range controls, block filter modes, Fastplace burst breaking, Script AI, Aternos page, Hacking theme, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.',
   'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
   'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
+  'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, Settings overlap, GIF backgrounds, window controls, 26.1 safety gating, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, Settings overlap, GIF backgrounds, window controls, 26.1 safety gating, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
+  'Realtime Mode keeps the interface alive with regional clock updates, day/night atmosphere, animated themes, provider queue status, and live bot feedback without needing to refresh the app.':
+    'Realtime Mode keeps the interface alive with regional clock updates, day/night atmosphere, animated themes, provider queue status, and live bot feedback without needing to refresh the app.',
   'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.',
   'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.',
+  'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Minecraft 26.1.x is disabled until native PrismarineJS protocol data is available.':
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Minecraft 26.1.x is disabled until native PrismarineJS protocol data is available.',
   'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
     'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.',
   'Independent Minecraft bot client': 'Independent Minecraft bot client',
@@ -431,6 +442,8 @@ const textKeys = {
   'TrafficerTR v1.4': 'TrafficerTR v1.4',
   'Gemini AI, pathfinder, webhooks': 'Gemini AI, pathfinder, webhooks',
   'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
+  'Gemini AI, Realtime UI, Mobility, Nuker, Script AI':
+    'Gemini AI, Realtime UI, Mobility, Nuker, Script AI',
   'Actively maintained': 'Actively maintained'
 }
 
@@ -605,22 +618,33 @@ const localizedText = {
       'TrafficerTR v1.2 Fixed; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
     'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
       'TrafficerTR v1.4; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, Nuker menzil kontrolu, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
+    'TrafficerTR v1.4 focuses on Gemini-only AI control, Realtime Mode visuals, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+      'TrafficerTR v1.4; sadece Gemini AI kontrolu, Realtime Mode gorselleri, intent tabanli komutlar, Mobility Engine onarimi, Nuker menzil kontrolu, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
     Added: 'Eklenenler',
     'Fixed / being fixed': 'Duzeltilenler / duzeltilmeye calisilanlar',
+    'Realtime Mode': 'Realtime Mode',
     'Under maintenance': 'Bakimda',
     'In development': 'Gelistirme asamasinda',
     'Gemini API key field, Gemini Flash Latest model option, intent router, live player-follow intents, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
       'Gemini API key alani, Gemini Flash Latest model secenegi, intent router, canli oyuncu takip intentleri, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
     'Nuker range controls, block filter modes, Fastplace burst breaking, Gemini API key field, Gemini Flash Latest model option, intent router, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
       'Nuker menzil kontrolleri, blok filtre modlari, Fastplace toplu kirma, Gemini API key alani, Gemini Flash Latest model secenegi, intent router, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
+    'Nuker range controls, block filter modes, Fastplace burst breaking, Script AI, Aternos page, Hacking theme, custom GIF backgrounds, Ely.by auth, GitHub update link, and provider queue status.':
+      'Nuker menzil kontrolleri, blok filtre modlari, Fastplace toplu kirma, Script AI, Aternos sayfasi, Hacking temasi, ozel GIF arka planlari, Ely.by girisi, GitHub guncelleme baglantisi ve provider kuyruk durumu eklendi.',
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
       'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
       'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, Nuker kare alan kazma, eski Blocks/tick davranisi, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
+    'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, Settings overlap, GIF backgrounds, window controls, 26.1 safety gating, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
+      'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, Nuker kare alan kazma, Settings ust uste binme sorunu, GIF arka planlari, pencere butonlari, 26.1 guvenlik kapisi, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
+    'Realtime Mode keeps the interface alive with regional clock updates, day/night atmosphere, animated themes, provider queue status, and live bot feedback without needing to refresh the app.':
+      'Realtime Mode; bolgesel saat guncellemeleri, gece/gunduz atmosferi, animasyonlu temalar, provider kuyruk durumu ve canli bot geri bildirimiyle uygulamayi yenilemeye gerek kalmadan arayuzu canli tutar.',
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
       'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker aktif, ancak anlik blok kirma bazi sunucularda anti-cheat ve protokol davranisina bagli kalabilir.',
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
       'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker aktif, ancak anlik blok kirma bazi sunucularda anti-cheat ve protokol davranisina bagli kalabilir.',
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Minecraft 26.1.x is disabled until native PrismarineJS protocol data is available.':
+      'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Minecraft 26.1.x, native PrismarineJS protokol datasi gelene kadar kapali tutulur.',
     'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
       'World Model kaliciligi, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine ve Reflection Engine gelistiriliyor.',
     Build: 'Derleme',
@@ -631,6 +655,8 @@ const localizedText = {
     'TrafficerTR v1.4': 'TrafficerTR v1.4',
     'Gemini AI, pathfinder, webhooks': 'Gemini AI, yol bulucu, webhook',
     'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
+    'Gemini AI, Realtime UI, Mobility, Nuker, Script AI':
+      'Gemini AI, Realtime UI, Mobility, Nuker, Script AI',
     'Actively maintained': 'Aktif olarak geliştiriliyor'
   }
 }
