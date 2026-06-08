@@ -302,6 +302,10 @@ export class KnowledgeGraph {
   }
 
   status() {
-    return { nodes: this.nodes.size, dependencyEdges: this.edges.size, dynamic: Boolean(this.brain?.dynamicDefinition) }
+    return {
+      nodes: this.nodes.size,
+      dependencyEdges: this.edges.size,
+      dynamic: Boolean(this.brain?.dynamicDefinition)
+    }
   }
 }

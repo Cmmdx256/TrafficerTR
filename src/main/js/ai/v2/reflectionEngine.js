@@ -12,8 +12,10 @@ export class ReflectionEngine {
   lessonFrom(event, context = {}) {
     const reason = String(context.reason || event || '').toLowerCase()
     if (reason.includes('missing')) return 'Check prerequisites before retrying the same action.'
-    if (reason.includes('path') || reason.includes('stuck')) return 'Use alternative route or terrain modification before repeating movement.'
-    if (reason.includes('health') || reason.includes('food')) return 'Survival risk overrides normal goals.'
+    if (reason.includes('path') || reason.includes('stuck'))
+      return 'Use alternative route or terrain modification before repeating movement.'
+    if (reason.includes('health') || reason.includes('food'))
+      return 'Survival risk overrides normal goals.'
     return `Review outcome: ${event}`
   }
 }

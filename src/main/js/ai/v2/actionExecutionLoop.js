@@ -190,7 +190,11 @@ export class ActionExecutionLoop {
     }
 
     // Execute acquisition skill
-    const acquisitionResult = await this.skillRegistry.execute(acquireSkill, { target: item }, context)
+    const acquisitionResult = await this.skillRegistry.execute(
+      acquireSkill,
+      { target: item },
+      context
+    )
 
     return acquisitionResult
   }
@@ -301,7 +305,9 @@ export class ActionExecutionLoop {
       return { executions: 0 }
     }
 
-    const successful = this.executionHistory.filter((e) => e.status === 'success' || e.status === 'success_recovered')
+    const successful = this.executionHistory.filter(
+      (e) => e.status === 'success' || e.status === 'success_recovered'
+    )
     const failed = this.executionHistory.filter((e) => e.status === 'failed')
     const errors = this.executionHistory.filter((e) => e.status === 'error')
 
@@ -312,8 +318,12 @@ export class ActionExecutionLoop {
       errors: errors.length,
       successRate: successful.length / this.executionHistory.length,
       recovered: successful.filter((e) => e.status === 'success_recovered').length,
-      avgAttempts: this.executionHistory.reduce((sum, e) => sum + e.attempts, 0) / this.executionHistory.length,
-      avgDuration: this.executionHistory.reduce((sum, e) => sum + e.duration, 0) / this.executionHistory.length,
+      avgAttempts:
+        this.executionHistory.reduce((sum, e) => sum + e.attempts, 0) /
+        this.executionHistory.length,
+      avgDuration:
+        this.executionHistory.reduce((sum, e) => sum + e.duration, 0) /
+        this.executionHistory.length,
       skillBreakdown: this.getSkillBreakdown()
     }
   }
@@ -337,7 +347,8 @@ export class ActionExecutionLoop {
       }
 
       breakdown[exec.skill].avgDuration =
-        (breakdown[exec.skill].avgDuration * (breakdown[exec.skill].total - 1) + exec.duration) / breakdown[exec.skill].total
+        (breakdown[exec.skill].avgDuration * (breakdown[exec.skill].total - 1) + exec.duration) /
+        breakdown[exec.skill].total
     }
 
     return breakdown

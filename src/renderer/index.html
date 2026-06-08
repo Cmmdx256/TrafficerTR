@@ -14,17 +14,32 @@
     <div class="sea"></div>
     <div class="snow snow-one"></div>
     <div class="snow snow-two"></div>
+    <div class="matrix-rain">
+      <span>0101101001011010010110100101101001011010</span>
+      <span>1010010110100101101001011010010110100101</span>
+      <span>0010110100101101001011010010110100101101</span>
+      <span>1101001011010010110100101101001011010010</span>
+      <span>0110100101101001011010010110100101101001</span>
+      <span>1001011010010110100101101001011010010110</span>
+      <span>0100101101001011010010110100101101001011</span>
+      <span>1011010010110100101101001011010010110100</span>
+    </div>
   </div>
 
   <div id="splashScreen" class="splash-screen" aria-hidden="true">
-    <div class="splash-stage splash-stage-cmmdx">
+    <div class="splash-stage splash-stage-cmmdx256">
       <div class="splash-github-lockup">
+        <span class="splash-github-ball" aria-hidden="true"></span>
         <svg class="splash-github" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.58.1.79-.25.79-.56v-2.14c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.7.42.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
         </svg>
-        <p class="splash-github-word">GitHub</p>
       </div>
-      <p class="cmmdx-title">BY CMMDX256</p>
+      <p class="splash-github-word" aria-label="GitHub">
+        <span>G</span><span>I</span><span>T</span><span>H</span><span>U</span><span>B</span>
+      </p>
+      <p class="cmmdx256-title" aria-label="CMMDX256">
+        <span>C</span><span>M</span><span>M</span><span>D</span><span>X</span><span>2</span><span>5</span><span>6</span>
+      </p>
     </div>
     <div class="splash-stage splash-stage-app">
       <div class="splash-mark">
@@ -42,7 +57,7 @@
         <p class="gradient">TrafficerTR</p>
         <p id="versionString" class="tip" style="margin-left: 5px;"></p>
       </div>
-      <div>
+      <div class="window-controls">
         <img src="./assets/icons/min.svg" class="icon-sm button" id="minimize">
         <img src="./assets/icons/x.svg" class="icon-sm button" id="close">
       </div>
@@ -52,6 +67,7 @@
         <li class="tab tab-pane selected" data-tab="general" data-i18n="nav.general">General</li>
         <li id="bottingTab" class="tab tab-pane" data-tab="botting" data-i18n="nav.botting">Botting</li>
         <li class="tab tab-pane" data-tab="scripting" data-i18n="nav.scripting">Scripting</li>
+        <li class="tab tab-pane" data-tab="aternos" data-i18n="nav.aternos">Aternos</li>
         <li class="tab tab-pane" data-tab="proxy" data-i18n="nav.proxy">Proxy</li>
         <li class="tab tab-pane" data-tab="webhook" data-i18n="nav.webhook">Webhook</li>
         <li class="tab tab-pane" data-tab="about" data-i18n="nav.about">About</li>
@@ -108,6 +124,14 @@
               <div class="mu-4">
                 <button id="btnStart" class="button">Start</button>
                 <button id="btnStop" class="button">Stop</button>
+              </div>
+
+              <div class="mu-2 space-h">
+                <label class="containerCheckbox">
+                  <span data-i18n="bot.instantMode">Instant Mode</span>
+                  <input id="instantMode" type="checkbox">
+                  <span class="checkmark"></span>
+                </label>
               </div>
 
             </div>
@@ -246,7 +270,7 @@
                 <li class="tab-2 control-tab" data-tab="look">Look</li>
                 <li class="tab-2 control-tab" data-tab="antiafk">AntiAFK</li>
                 <li class="tab-2 control-tab" data-tab="killaura">KillAura</li>
-                <li class="tab-2 control-tab maintenance" data-tab="interact">Interact</li>
+                <li class="tab-2 control-tab" data-tab="interact">Interact</li>
                 <li class="tab-2 control-tab" data-tab="nuker">Nuker</li>
                 <li class="tab-2 control-tab" data-tab="pathfinder">Pathfinder</li>
               </ul>
@@ -316,6 +340,14 @@
                     <option value="6">Slot 7</option>
                     <option value="7">Slot 8</option>
                     <option value="8">Slot 9</option>
+                  </select>
+                </div>
+
+                <div class="flex mu-2">
+                  <p class="text-sm-2 pr-4" data-i18n="bot.hand">Hand</p>
+                  <select id="useHeldHand">
+                    <option value="main" data-i18n="bot.mainHand">Main hand</option>
+                    <option value="offhand" data-i18n="bot.offHand">Off hand</option>
                   </select>
                 </div>
 
@@ -417,6 +449,18 @@
                   <p class="text-sm pr-4">Coords</p>
                   <input id="interactCoords" type="text" placeholder="eg: 0 1 0">
                 </div>
+                <div class="flex mu-2">
+                  <p class="text-sm pr-4" data-i18n="bot.hand">Hand</p>
+                  <select id="interactHand">
+                    <option value="main" data-i18n="bot.mainHand">Main hand</option>
+                    <option value="offhand" data-i18n="bot.offHand">Off hand</option>
+                  </select>
+                </div>
+                <label class="containerCheckbox mu-2">
+                  <span data-i18n="bot.rotateToBlock">Rotate to block</span>
+                  <input id="interactRotate" type="checkbox" checked>
+                  <span class="checkmark"></span>
+                </label>
                 <div class="space-h-f mu-2">
                   <p class="text-sm">Mouse button</p>
                 </div>
@@ -785,12 +829,122 @@ end"></textarea>
                 <span class="checkmark"></span>
               </label>
 
+              <div class="nuker-panel mu-2">
+                <p class="text-sm" data-i18n="script.aiTitle">Script AI</p>
+                <p class="tip-sm" data-i18n="script.aiTip">Uses Gemini only to write TrafficerTR scripts and inserts the result into the script editor.</p>
+              </div>
+
+              <textarea id="scriptAiPrompt" class="textbox" style="width: 280px; height: 110px;" spellcheck="false" placeholder="Example: make selected bots say hello 3 times with random delay" data-i18n-placeholder="script.aiPlaceholder"></textarea>
+              <div class="space-h-f mu-2">
+                <button id="generateScriptAi" data-i18n="script.aiGenerate">Generate</button>
+              </div>
+              <p id="scriptAiStatus" class="tip-sm"></p>
+
+            </div>
+          </div>
+
+        </div>
+
+        <div class="tab-pane" id="aternos" style="display: none;">
+
+          <div class="space-h">
+            <div class="m-4 flex-c">
+              <div class="space-h">
+                <p class="text-sm" data-i18n="aternos.title">Aternos</p>
+              </div>
+
+              <textarea id="aternosServerList" class="textbox" style="width: 300px; height: 350px;" spellcheck="false" placeholder="serveradi&#10;arkadas.aternos.me&#10;arkadas.aternos.host"></textarea>
+              <div class="aternos-action-row mu-2">
+                <div class="aternos-primary-actions">
+                  <button id="aternosCheckStart" data-i18n="aternos.start">Check</button>
+                  <button id="aternosDiscoveryStart" class="beta-button">
+                    <span data-i18n="aternos.discover">Discover</span>
+                    <span class="button-beta-badge">BETA</span>
+                  </button>
+                  <button id="aternosCheckStop" data-i18n="aternos.stop">Stop</button>
+                </div>
+                <button id="aternosListClear" data-i18n="aternos.clear">Clear</button>
+              </div>
+              <div class="space-h mu-2">
+                <label class="containerCheckbox">
+                  <span data-i18n="aternos.randomize">Random order</span>
+                  <input id="aternosRandomOrder" type="checkbox">
+                  <span class="checkmark"></span>
+                </label>
+              </div>
+              <div class="aternos-options mu-2">
+                <div class="flex">
+                  <p class="text-sm-2 pr-4" data-i18n="aternos.concurrency">Concurrency</p>
+                  <input id="aternosConcurrency" type="number" min="1" max="12" placeholder="4">
+                </div>
+                <div class="flex mu-1">
+                  <p class="text-sm-2 pr-4" data-i18n="aternos.timeout">Timeout</p>
+                  <input id="aternosTimeout" type="number" min="1500" max="15000" placeholder="5000">
+                </div>
+                <div class="flex mu-1">
+                  <p class="text-sm-2 pr-4" data-i18n="aternos.discoveryTargetCount">Targets</p>
+                  <input id="aternosDiscoveryTargetCount" type="number" min="10" max="50000" placeholder="5000">
+                </div>
+              </div>
+            </div>
+
+            <div class="m-4 pr-4" style="width: 300px;">
+              <div class="nuker-panel mu-2">
+                <p class="text-sm" data-i18n="aternos.safeTitle">List checker</p>
+                <p class="tip-sm" data-i18n="aternos.safeTip">Checks only the Aternos addresses you enter. It does not generate combinations.</p>
+                <p class="tip-sm" data-i18n="aternos.generateTip">Automatically appends .aternos.me to bare server names, accepts .aternos.host, and can check hosts in a random order.</p>
+                <p class="tip-sm" data-i18n="aternos.discoveryTip">Discover generates random Aternos hosts and checks them with the same log panel.</p>
+              </div>
+
+              <div class="aternos-stats mu-2">
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.total">Total</p>
+                  <p id="aternosStatTotal" class="text-sm">0</p>
+                </div>
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.active">Active</p>
+                  <p id="aternosStatActive" class="text-sm">0</p>
+                </div>
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.queued">Queued</p>
+                  <p id="aternosStatQueued" class="text-sm">0</p>
+                </div>
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.checked">Checked</p>
+                  <p id="aternosStatChecked" class="text-sm">0</p>
+                </div>
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.successCount">OK</p>
+                  <p id="aternosStatSuccess" class="text-sm success-text">0</p>
+                </div>
+                <div>
+                  <p class="tip-sm" data-i18n="aternos.failCount">Fail</p>
+                  <p id="aternosStatFail" class="text-sm fail-text">0</p>
+                </div>
+              </div>
+              <p id="aternosProgressText" class="tip-sm mu-1">Idle</p>
+
+              <p class="text-sm mu-2" data-i18n="aternos.success">Successful</p>
+              <ul id="aternosSuccessLogbox" class="border aternos-logbox"></ul>
+
+              <p class="text-sm mu-2" data-i18n="aternos.failed">Failed</p>
+              <ul id="aternosFailLogbox" class="border aternos-logbox"></ul>
+
+              <div class="space-h mu-2">
+                <label class="containerCheckbox">
+                  Auto scroll
+                  <input id="autoScrollAternos" type="checkbox" checked>
+                  <span class="checkmark"></span>
+                </label>
+                <button id="aternosLogClear" data-i18n="aternos.clearLogs">Clear logs</button>
+              </div>
             </div>
           </div>
 
         </div>
 
         <div class="tab-pane" id="proxy" style="display: none;">
+
 
           <div class="space-h">
             <div class="m-4 flex-c">
@@ -951,8 +1105,8 @@ end"></textarea>
             </div>
 
             <div class="about-copy">
-              <p class="text-sm">TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.</p>
-              <p class="text-sm-2">TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.</p>
+              <p class="text-sm">TrafficerTR is maintained by Glock (Cmmdx256) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.</p>
+              <p class="text-sm-2">TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.</p>
 
               <div class="about-release-notes">
                 <div>
@@ -984,7 +1138,7 @@ end"></textarea>
             <div class="about-meta">
               <div>
                 <p class="tip-sm">Build</p>
-                <p class="text-sm-2">TrafficerTR v1.3</p>
+                <p class="text-sm-2">TrafficerTR v1.4</p>
               </div>
               <div>
                 <p class="tip-sm">Focus</p>
@@ -1017,6 +1171,7 @@ end"></textarea>
             <select id="uiTheme">
               <option value="winter" data-i18n="theme.winter">Winter</option>
               <option value="summer" data-i18n="theme.summer">Summer</option>
+              <option value="hacking" data-i18n="theme.hacking">Hacking</option>
             </select>
           </div>
           <div class="settings-row">
@@ -1176,6 +1331,13 @@ end"></textarea>
     })
     document.getElementById('proxyLogClear').addEventListener('click', () => {
       document.getElementById('proxyLogbox').innerHTML = ''
+    })
+    document.getElementById('aternosListClear').addEventListener('click', () => {
+      document.getElementById('aternosServerList').value = ''
+    })
+    document.getElementById('aternosLogClear').addEventListener('click', () => {
+      document.getElementById('aternosSuccessLogbox').innerHTML = ''
+      document.getElementById('aternosFailLogbox').innerHTML = ''
     })
   </script>
 </body>

@@ -75,7 +75,8 @@ export class WorldModel {
     const ids = names
       .map((name) => this.bot?.registry?.blocksByName?.[name]?.id)
       .filter((id) => Number.isFinite(id))
-    if (!ids.length || typeof this.bot?.findBlocks !== 'function' || !this.bot?.entity?.position) return []
+    if (!ids.length || typeof this.bot?.findBlocks !== 'function' || !this.bot?.entity?.position)
+      return []
     const blocks = this.bot
       .findBlocks({
         point: this.bot.entity.position,

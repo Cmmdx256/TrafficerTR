@@ -111,7 +111,10 @@ Failures: ${snapshot.recentFailures.map((f) => f.reason).join(', ') || 'none'}
 Lessons: ${snapshot.lessons.map((l) => l.reason).join(', ') || 'none'}
 
 PROGRESSION GOALS (Complete in order):
-${snapshot.availableGoals.slice(0, 5).map((g, i) => `${i + 1}. ${g}`).join('\n')}
+${snapshot.availableGoals
+  .slice(0, 5)
+  .map((g, i) => `${i + 1}. ${g}`)
+  .join('\n')}
 
 YOUR TASK:
 Respond with ONLY a JSON object (no markdown, no explanation):

@@ -30,7 +30,10 @@ export class TrafficerAIV2Runtime {
     })
     this.worldModel = new WorldModel({ bot, memory: this.memory })
     this.spatialReasoning = new SpatialReasoningLayer({ bot, mobility })
-    this.snapshotSystem = new LocalWorldSnapshotSystem({ bot, spatialReasoning: this.spatialReasoning })
+    this.snapshotSystem = new LocalWorldSnapshotSystem({
+      bot,
+      spatialReasoning: this.spatialReasoning
+    })
     this.brain = new MinecraftBrain({ bot })
     this.knowledgeGraph = new KnowledgeGraph({ brain: this.brain })
     this.goalManager = new GoalManager({ knowledgeGraph: this.knowledgeGraph })
@@ -62,10 +65,18 @@ export class TrafficerAIV2Runtime {
 
   registerCoreSkills(adapters = {}) {
     const register = (name, description, execute) => {
-      this.skills.register({ name, description, execute: execute || (() => ({ ok: false, reason: `adapter_missing:${name}` })) })
+      this.skills.register({
+        name,
+        description,
+        execute: execute || (() => ({ ok: false, reason: `adapter_missing:${name}` }))
+      })
     }
     register('come_to_player', 'Move near a player using Mobility Engine.', adapters.comeToPlayer)
-    register('follow_player', 'Continuously follow a player using Mobility Engine.', adapters.followPlayer || adapters.comeToPlayer)
+    register(
+      'follow_player',
+      'Continuously follow a player using Mobility Engine.',
+      adapters.followPlayer || adapters.comeToPlayer
+    )
     register('protect_player', 'Protect a player using Combat Engine.', adapters.protectPlayer)
     register('gather_wood', 'Find and gather nearby wood.', adapters.gatherWood)
     register('gather_resource', 'Find and gather a semantic resource.', adapters.gatherResource)
@@ -74,11 +85,23 @@ export class TrafficerAIV2Runtime {
     register('eat_food', 'Eat food when hungry.', adapters.eatFood)
     register('sleep', 'Sleep in nearest bed.', adapters.sleep)
     register('explore', 'Explore nearby area.', adapters.explore)
-    register('explore_cave', 'Explore for cave entrances.', adapters.exploreCave || adapters.explore)
+    register(
+      'explore_cave',
+      'Explore for cave entrances.',
+      adapters.exploreCave || adapters.explore
+    )
     register('give_items', 'Give inventory items to a player.', adapters.giveItems)
-    register('make_crafting_table_for_player', 'Gather wood, craft table, and give it to player.', adapters.makeCraftingTableForPlayer)
+    register(
+      'make_crafting_table_for_player',
+      'Gather wood, craft table, and give it to player.',
+      adapters.makeCraftingTableForPlayer
+    )
     register('build_structure', 'Build a structure template.', adapters.buildStructure)
-    register('build_house', 'Build a starter house template.', adapters.buildHouse || adapters.buildStructure)
+    register(
+      'build_house',
+      'Build a starter house template.',
+      adapters.buildHouse || adapters.buildStructure
+    )
     register('farm_crop', 'Farm or harvest crops.', adapters.farmCrop)
     register('trade_villager', 'Trade with a villager.', adapters.tradeVillager)
   }
@@ -91,7 +114,10 @@ export class TrafficerAIV2Runtime {
   }
 
   async executeIntent(intent, args = {}, context = {}) {
-    const observation = this.observe({ goal: intent, recentFailures: this.memory.state.longTerm.failures })
+    const observation = this.observe({
+      goal: intent,
+      recentFailures: this.memory.state.longTerm.failures
+    })
     const result = await this.coordinator.runIntent(intent, args, { ...context, observation })
     if (result?.ok) this.memory.rememberSuccess(`intent:${intent}`, { args })
     else this.memory.rememberFailure(`intent:${intent}`, { args, reason: result?.reason })

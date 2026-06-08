@@ -4,6 +4,7 @@ const translations = {
     'nav.general': 'General',
     'nav.botting': 'Botting',
     'nav.scripting': 'Scripting',
+    'nav.aternos': 'Aternos',
     'nav.proxy': 'Proxy',
     'nav.webhook': 'Webhook',
     'nav.about': 'About',
@@ -19,9 +20,12 @@ const translations = {
     'settings.bot': 'Bot settings',
     'theme.winter': 'Winter',
     'theme.summer': 'Summer',
+    'theme.hacking': 'Hacking',
     'bot.serverChat': 'Server',
     'placeholder.script':
       '# Repeat, random delay, variables\nrepeat 3\nchat Hello {player} {random:6}\ndelay 500 1500\nend',
+    'placeholder.aternosServers':
+      'server-name\nfriend-server.aternos.me\nfriend-server.aternos.host',
     'placeholder.username': 'username / token',
     'placeholder.server': 'localhost:25565',
     'placeholder.joinMessage': '/register',
@@ -43,7 +47,8 @@ const translations = {
     'bot.kicked': 'Kicked: ',
     'bot.connection': 'Connection: ',
     'nuker.quickRange': 'Quick range',
-    'nuker.quickRangeTip': 'Set the horizontal area size. Any value creates an NxN length/width area; height uses advanced up/down.',
+    'nuker.quickRangeTip':
+      'Set the horizontal area size. Any value creates an NxN length/width area; height uses advanced up/down.',
     'nuker.simpleRange': 'Simple range',
     'nuker.advancedRange': 'Advanced directional range',
     'nuker.up': 'Up',
@@ -53,7 +58,8 @@ const translations = {
     'nuker.forward': 'Forward',
     'nuker.back': 'Back',
     'nuker.blockFilter': 'Block filter',
-    'nuker.blockFilterTip': 'Blacklist protects listed blocks. Whitelist breaks only listed blocks.',
+    'nuker.blockFilterTip':
+      'Blacklist protects listed blocks. Whitelist breaks only listed blocks.',
     'nuker.targetMode': 'Target mode',
     'nuker.blacklistMode': 'Blacklist: ignore listed blocks',
     'nuker.whitelistMode': 'Whitelist: break only listed blocks',
@@ -61,20 +67,59 @@ const translations = {
     'nuker.blocksPlaceholder': 'dirt,glass,stone',
     'nuker.blocksTip': 'Comma separated block IDs. Example: dirt,grass_block,stone',
     'nuker.speed': 'Speed',
-    'nuker.speedTip': 'Fastplace breaks the whole selected range in one burst. Blocks/tick is used only when Fastplace is off.',
+    'nuker.speedTip':
+      'Fastplace breaks the whole selected range in one burst. Blocks/tick is used only when Fastplace is off.',
     'nuker.blocksPerTick': 'Blocks/tick',
     'nuker.blocksPerTickPlaceholder': 'empty = all in range',
     'nuker.fastplace': 'Fastplace',
     'nuker.rotateHead': 'Head rotate',
     'nuker.toggle': 'Toggle',
     'nuker.start': 'Start',
-    'nuker.stop': 'Stop'
+    'nuker.stop': 'Stop',
+    'script.aiTitle': 'Script AI',
+    'script.aiTip':
+      'Uses Gemini only to write TrafficerTR scripts and inserts the result into the script editor.',
+    'script.aiPlaceholder': 'Example: make selected bots say hello 3 times with random delay',
+    'script.aiGenerate': 'Generate',
+    'script.aiWorking': 'Generating script...',
+    'script.aiInserted': 'Script inserted.',
+    'aternos.title': 'Aternos',
+    'aternos.safeTitle': 'List checker',
+    'aternos.safeTip':
+      'Checks only the Aternos addresses or bare server names you enter. It appends .aternos.me automatically.',
+    'aternos.generateTip':
+      'It can check bare names plus .aternos.me or .aternos.host hosts, and optionally randomize the order.',
+    'aternos.randomize': 'Random order',
+    'aternos.start': 'Check',
+    'aternos.discover': 'Discover',
+    'aternos.stop': 'Stop',
+    'aternos.clear': 'Clear',
+    'aternos.discoveryTip':
+      'Discover generates random Aternos hosts and checks them with the same log panel.',
+    'aternos.discoveryTargetCount': 'Targets',
+    'aternos.success': 'Successful',
+    'aternos.failed': 'Failed',
+    'aternos.clearLogs': 'Clear logs',
+    'aternos.concurrency': 'Concurrency',
+    'aternos.timeout': 'Timeout',
+    'aternos.total': 'Total',
+    'aternos.active': 'Active',
+    'aternos.queued': 'Queued',
+    'aternos.checked': 'Checked',
+    'aternos.successCount': 'OK',
+    'aternos.failCount': 'Fail',
+    'bot.hand': 'Hand',
+    'bot.mainHand': 'Main hand',
+    'bot.offHand': 'Off hand',
+    'bot.rotateToBlock': 'Rotate to block',
+    'bot.instantMode': 'Instant Mode'
   },
   tr: {
     'splash.subtitle': 'Bot konsolu hazırlanıyor',
     'nav.general': 'Genel',
     'nav.botting': 'Botlar',
     'nav.scripting': 'Script',
+    'nav.aternos': 'Aternos',
     'nav.proxy': 'Proxy',
     'nav.webhook': 'Webhook',
     'nav.about': 'Hakkında',
@@ -90,6 +135,7 @@ const translations = {
     'settings.bot': 'Bot ayarları',
     'theme.winter': 'Kış',
     'theme.summer': 'Yaz',
+    'theme.hacking': 'Hacking',
     'bot.serverChat': 'Sunucu',
     'placeholder.script':
       '# Tekrar, rastgele bekleme, değişkenler\nrepeat 3\nchat Merhaba {player} {random:6}\ndelay 500 1500\nend',
@@ -114,7 +160,8 @@ const translations = {
     'bot.kicked': 'Atıldı: ',
     'bot.connection': 'Bağlantı: ',
     'nuker.quickRange': 'Hızlı menzil',
-    'nuker.quickRangeTip': 'Yatay alan boyutunu ayarlar. Hangi değer seçilirse o değer kadar NxN uzunluk/genişlik alanı olur; yükseklik gelişmiş yukarı/aşağı ayarını kullanır.',
+    'nuker.quickRangeTip':
+      'Yatay alan boyutunu ayarlar. Hangi değer seçilirse o değer kadar NxN uzunluk/genişlik alanı olur; yükseklik gelişmiş yukarı/aşağı ayarını kullanır.',
     'nuker.simpleRange': 'Tek menzil',
     'nuker.advancedRange': 'Gelişmiş yön menzili',
     'nuker.up': 'Yukarı',
@@ -124,7 +171,8 @@ const translations = {
     'nuker.forward': 'İleri',
     'nuker.back': 'Geri',
     'nuker.blockFilter': 'Blok filtresi',
-    'nuker.blockFilterTip': 'Blacklist listedeki blokları korur. Whitelist sadece listedeki blokları kırar.',
+    'nuker.blockFilterTip':
+      'Blacklist listedeki blokları korur. Whitelist sadece listedeki blokları kırar.',
     'nuker.targetMode': 'Hedef modu',
     'nuker.blacklistMode': 'Blacklist: listedeki blokları kırma',
     'nuker.whitelistMode': 'Whitelist: sadece listedeki blokları kır',
@@ -132,18 +180,59 @@ const translations = {
     'nuker.blocksPlaceholder': 'dirt,glass,stone',
     'nuker.blocksTip': 'Virgülle ayrılmış blok IDleri. Örnek: dirt,grass_block,stone',
     'nuker.speed': 'Hız',
-    'nuker.speedTip': 'Fastplace seçili menzilin tamamını tek dalgada kırar. Blok/tick sadece Fastplace kapalıyken kullanılır.',
+    'nuker.speedTip':
+      'Fastplace seçili menzilin tamamını tek dalgada kırar. Blok/tick sadece Fastplace kapalıyken kullanılır.',
     'nuker.blocksPerTick': 'Blok/tick',
     'nuker.blocksPerTickPlaceholder': 'boş = menzildeki hepsi',
     'nuker.fastplace': 'Fastplace',
     'nuker.rotateHead': 'Kafa döndürme',
     'nuker.toggle': 'Aç/Kapat',
     'nuker.start': 'Başlat',
-    'nuker.stop': 'Durdur'
+    'nuker.stop': 'Durdur',
+    'script.aiTitle': 'Script AI',
+    'script.aiTip':
+      'Geminiyi sadece TrafficerTR scripti yazmak icin kullanir ve sonucu script editorune ekler.',
+    'script.aiPlaceholder': 'Ornek: secili botlar rastgele gecikmeyle 3 kez merhaba desin',
+    'script.aiGenerate': 'Olustur',
+    'script.aiWorking': 'Script olusturuluyor...',
+    'script.aiInserted': 'Script eklendi.',
+    'aternos.title': 'Aternos',
+    'aternos.safeTitle': 'Liste kontrolu',
+    'aternos.safeTip':
+      'Sadece girdigin Aternos adreslerini veya bare sunucu isimlerini kontrol eder. .aternos.me sonunu otomatik ekler.',
+    'aternos.generateTip':
+      'Bare isimleri, .aternos.me ve .aternos.host hostlarini kontrol edebilir, istege bagli olarak sirayi rastgele yapabilir.',
+    'aternos.randomize': 'Rastgele sirala',
+    'aternos.start': 'Kontrol et',
+    'aternos.discover': 'Kesfet',
+    'aternos.stop': 'Durdur',
+    'aternos.clear': 'Temizle',
+    'aternos.discoveryTip':
+      'Kesfet rastgele Aternos hostlari uretir ve ayni log panelinde kontrol eder.',
+    'aternos.discoveryTargetCount': 'Hedef',
+    'aternos.success': 'Basarili',
+    'aternos.failed': 'Basarisiz',
+    'aternos.clearLogs': 'Loglari temizle',
+    'aternos.concurrency': 'Eszamanli',
+    'aternos.timeout': 'Zaman asimi',
+    'aternos.total': 'Toplam',
+    'aternos.active': 'Aktif',
+    'aternos.queued': 'Kuyruk',
+    'aternos.checked': 'Kontrol',
+    'aternos.successCount': 'OK',
+    'aternos.failCount': 'Hata',
+    'bot.hand': 'El',
+    'bot.mainHand': 'Sag el',
+    'bot.offHand': 'Sol el',
+    'bot.rotateToBlock': 'Bloka don',
+    'bot.instantMode': 'Anlık Mod'
   }
 }
 
 const offlineCleanupTimers = new Map()
+const aternosLoggedSuccessServers = new Set()
+const aternosLogQueue = []
+let aternosLogFlushTimer
 const OFFLINE_BOT_CLEANUP_MS = 30000
 
 const textKeys = {
@@ -302,19 +391,19 @@ const textKeys = {
   'Kicks [Premium]': 'Kicks [Premium]',
   'Auth message [Premium]': 'Auth message [Premium]',
   Config: 'Config',
-  'My name is Glock (Cmmdx).': 'My name is Glock (Cmmdx).',
+  'My name is Glock (Cmmdx256).': 'My name is Glock (Cmmdx256).',
   'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
     'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.',
   'This build is maintained independently and is not connected to the original project social links.':
     'This build is maintained independently and is not connected to the original project social links.',
-  'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
-    'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.',
+  'TrafficerTR is maintained by Glock (Cmmdx256) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
+    'TrafficerTR is maintained by Glock (Cmmdx256) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.',
   'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.':
     'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.',
   'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
     'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.',
-  'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
-    'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.',
+  'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+    'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.',
   Added: 'Added',
   'Fixed / being fixed': 'Fixed / being fixed',
   'Under maintenance': 'Under maintenance',
@@ -328,7 +417,7 @@ const textKeys = {
   'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.',
   'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
-    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.',
+    'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.',
   'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.',
   'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
@@ -339,7 +428,7 @@ const textKeys = {
   Status: 'Status',
   'TrafficerTR v1.2': 'TrafficerTR v1.2',
   'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
-  'TrafficerTR v1.3': 'TrafficerTR v1.3',
+  'TrafficerTR v1.4': 'TrafficerTR v1.4',
   'Gemini AI, pathfinder, webhooks': 'Gemini AI, pathfinder, webhooks',
   'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
   'Actively maintained': 'Actively maintained'
@@ -502,20 +591,20 @@ const localizedText = {
     'Kicks [Premium]': 'Atılmalar [Premium]',
     'Auth message [Premium]': 'Giriş mesajı [Premium]',
     Config: 'Config',
-    'My name is Glock (Cmmdx).': 'Benim adım Glock (Cmmdx).',
+    'My name is Glock (Cmmdx256).': 'Benim adım Glock (Cmmdx256).',
     'I maintain TrafficerTR with a focus on clean fixes, newer Minecraft compatibility, and a smoother experience for people who want a simple client they can build and run themselves.':
       'TrafficerTR yapısını temiz düzeltmeler, yeni Minecraft uyumluluğu ve kendi derleyip çalıştırmak isteyenler için daha akıcı bir deneyim odağıyla geliştiriyorum.',
     'This build is maintained independently and is not connected to the original project social links.':
       'Bu sürüm bağımsız olarak geliştirilmektedir ve orijinal projenin sosyal bağlantılarıyla ilişkili değildir.',
-    'TrafficerTR is maintained by Glock (Cmmdx) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
-      'TrafficerTR; modern Minecraft bot kontrolü, Gemini sohbet otomasyonu ve daha temiz bir masaüstü deneyimi odağıyla Glock (Cmmdx) tarafından geliştiriliyor.',
+    'TrafficerTR is maintained by Glock (Cmmdx256) with a focus on modern Minecraft bot control, Gemini chat automation, and a cleaner desktop experience.':
+      'TrafficerTR; modern Minecraft bot kontrolü, Gemini sohbet otomasyonu ve daha temiz bir masaüstü deneyimi odağıyla Glock (Cmmdx256) tarafından geliştiriliyor.',
     'Version 1.2 moves AI control to Gemini, improves multi-bot queue handling, and keeps the interface focused on fast bot operations.':
       'Sürüm 1.2, AI kontrolünü Geminiye taşır, çoklu bot kuyruk yönetimini iyileştirir ve arayüzü hızlı bot işlemlerine odaklı tutar.',
     'Independent Minecraft bot client': 'Bağımsız Minecraft bot client',
     'TrafficerTR v1.2 Fixed focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, custom UI backgrounds, and cleaner multi-bot operation.':
       'TrafficerTR v1.2 Fixed; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
-    'TrafficerTR v1.3 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
-      'TrafficerTR v1.3; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, Nuker menzil kontrolu, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
+    'TrafficerTR v1.4 focuses on Gemini-only AI control, intent-based commands, Mobility Engine repair, Nuker range control, custom UI backgrounds, and cleaner multi-bot operation.':
+      'TrafficerTR v1.4; sadece Gemini AI kontrolu, intent tabanli komutlar, Mobility Engine onarimi, Nuker menzil kontrolu, ozel GIF arka planlari ve daha temiz coklu bot kullanimina odaklanir.',
     Added: 'Eklenenler',
     'Fixed / being fixed': 'Duzeltilenler / duzeltilmeye calisilanlar',
     'Under maintenance': 'Bakimda',
@@ -529,7 +618,7 @@ const localizedText = {
     'Duplicate Gemini replies, quota/rate-limit handling, bot-name-only chat triggering, offline bot cleanup, front/back block detection, Nuker square range digging, stale Blocks/tick behavior, spawn readiness, Vec3 position safety, strict movement verification, and recovery loops.':
       'Tekrarlanan Gemini cevaplari, kota/rate-limit yonetimi, sadece bot adiyla tetikleme, offline bot temizleme, on/arka blok algilama, Nuker kare alan kazma, eski Blocks/tick davranisi, spawn hazirligi, Vec3 konum guvenligi, siki hareket dogrulama ve recovery donguleri duzeltiliyor.',
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is planned for the next version.':
-      'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker sonraki surum icin planlaniyor.',
+      'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker aktif, ancak anlik blok kirma bazi sunucularda anti-cheat ve protokol davranisina bagli kalabilir.',
     'AI Mode is still marked BETA / UNDERMAINTENANCE while the intent-driven autonomous agent layer is being stabilized. Nuker is active, but instant breaking can still depend on server anti-cheat and protocol behavior.':
       'AI Mode, intent tabanli otonom agent katmani stabil hale getirilirken BETA / BAKIMDA olarak isaretlidir. Nuker aktif, ancak anlik blok kirma bazi sunucularda anti-cheat ve protokol davranisina bagli kalabilir.',
     'World Model persistence, Skill Registry, Minecraft Brain, Knowledge Graph, Goal Manager, Planner, Survival Engine, Combat Engine, Building Engine, and Reflection Engine.':
@@ -539,7 +628,7 @@ const localizedText = {
     Status: 'Durum',
     'TrafficerTR v1.2': 'TrafficerTR v1.2',
     'TrafficerTR v1.2 Fixed': 'TrafficerTR v1.2 Fixed',
-    'TrafficerTR v1.3': 'TrafficerTR v1.3',
+    'TrafficerTR v1.4': 'TrafficerTR v1.4',
     'Gemini AI, pathfinder, webhooks': 'Gemini AI, yol bulucu, webhook',
     'Gemini AI, Mobility, Nuker': 'Gemini AI, Mobility, Nuker',
     'Actively maintained': 'Aktif olarak geliştiriliyor'
@@ -548,6 +637,8 @@ const localizedText = {
 
 const placeholderKeys = {
   scriptText: 'placeholder.script',
+  scriptAiPrompt: 'script.aiPlaceholder',
+  aternosServerList: 'placeholder.aternosServers',
   username: 'placeholder.username',
   server: 'placeholder.server',
   joinMessage: 'placeholder.joinMessage',
@@ -580,8 +671,7 @@ const runtimeText = {
     'Failed to scrape proxies': 'Proxy çekme başarısız.',
     'Please enter a valid Discord webhook URL.': 'Lütfen geçerli bir Discord webhook URL gir.',
     'Webhook test sent.': 'Webhook testi gönderildi.',
-    '26.1.x support is paused until Mineflayer/minecraft-protocol adds native support.':
-      '26.1.x desteği Mineflayer/minecraft-protocol native destek ekleyene kadar askıda.'
+    'This Minecraft version is currently disabled.': 'Bu Minecraft sürümü şu anda devre dışı.'
   }
 }
 
@@ -605,9 +695,19 @@ window.addEventListener('DOMContentLoaded', () => {
   restoreUISettings()
   applyUISettings()
   startRegionalClock()
-  setTimeout(() => {
-    document.getElementById('splashScreen')?.classList.add('hide')
-  }, 3900)
+  const splashScreen = document.getElementById('splashScreen')
+  const startSplash = () => {
+    splashScreen?.classList.add('splash-ready')
+    setTimeout(() => {
+      splashScreen?.classList.add('hide')
+      document.body.classList.add('splash-complete')
+    }, 7200)
+  }
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(startSplash)
+  } else {
+    window.addEventListener('load', () => requestAnimationFrame(startSplash), { once: true })
+  }
   window.electron?.ipcRenderer.send('loaded')
 
   window.electron?.ipcRenderer.on('setConfig', (event, config, version) => {
@@ -718,6 +818,10 @@ window.addEventListener('DOMContentLoaded', () => {
         break
       default:
     }
+  })
+
+  window.electron?.ipcRenderer.on('aternosEvent', (event, info) => {
+    handleAternosEvent(info)
   })
 
   window.electron?.ipcRenderer.on('botEvent', (event, info) => {
@@ -850,9 +954,84 @@ function buttonClick(event) {
       clearDupe()
       notify('Info', t('notify.clearProxy'), 'success')
       break
+    case 'generateScriptAi':
+      generateScriptWithAi()
+      break
+    case 'aternosCheckStart':
+      startAternosCheck()
+      break
+    case 'aternosDiscoveryStart':
+      startAternosDiscovery()
+      break
+    case 'aternosCheckStop':
+      window.electron?.ipcRenderer.send('stopAternosCheck')
+      break
+    case 'btnStart': {
+      const instantModeChecked = document.getElementById('instantMode')?.checked || false
+      window.electron?.ipcRenderer.send('btnClick', buttonId, { instantMode: instantModeChecked })
+      break
+    }
     default:
       window.electron?.ipcRenderer.send('btnClick', buttonId)
       break
+  }
+}
+
+async function startAternosCheck() {
+  const randomOrder = document.getElementById('aternosRandomOrder')?.checked || false
+  const concurrency = document.getElementById('aternosConcurrency')?.value || 4
+  const timeout = document.getElementById('aternosTimeout')?.value || 5000
+  resetAternosStats()
+  const result = await window.electron?.ipcRenderer.invoke('startAternosCheck', {
+    randomOrder,
+    concurrency,
+    timeout
+  })
+  if (!result?.ok) {
+    notify('Error', result?.error || 'Aternos check failed', 'error')
+    return
+  }
+  notify('Info', `Aternos check started: ${result.count}`, 'success')
+}
+
+async function startAternosDiscovery() {
+  const concurrency = document.getElementById('aternosConcurrency')?.value || 10
+  const timeout = document.getElementById('aternosTimeout')?.value || 3000
+  const targetCount = document.getElementById('aternosDiscoveryTargetCount')?.value || 5000
+  resetAternosStats()
+  const result = await window.electron?.ipcRenderer.invoke('startAternosDiscovery', {
+    concurrency,
+    timeout,
+    targetCount
+  })
+  if (!result?.ok) {
+    notify('Error', result?.error || 'Aternos discovery failed', 'error')
+    return
+  }
+  notify('Info', `Aternos discovery started: ${result.count}`, 'success')
+}
+
+async function generateScriptWithAi() {
+  const status = document.getElementById('scriptAiStatus')
+  const scriptText = document.getElementById('scriptText')
+  if (status) status.textContent = t('script.aiWorking')
+  try {
+    const result = await window.electron?.ipcRenderer.invoke('generateScriptWithAi')
+    if (!result?.ok) {
+      if (status) status.textContent = result?.error || 'Script AI failed'
+      notify('Error', result?.error || 'Script AI failed', 'error')
+      return
+    }
+    if (scriptText) {
+      scriptText.value = result.script
+      window.electron?.ipcRenderer.send('setConfig', 'value', 'scriptText', result.script)
+    }
+    if (status) status.textContent = t('script.aiInserted')
+    notify('Success', t('script.aiInserted'), 'success')
+  } catch (error) {
+    const message = error?.message || 'Script AI failed'
+    if (status) status.textContent = message
+    notify('Error', message, 'error')
   }
 }
 
@@ -891,6 +1070,9 @@ function navClick(event) {
   })
 
   target.classList.add('selected')
+  document.body.classList.remove('tab-swap')
+  void document.body.offsetWidth
+  document.body.classList.add('tab-swap')
 }
 
 function checkUsername() {
@@ -1056,7 +1238,11 @@ function applyUISettings() {
 
   document.documentElement.lang = currentLanguage
   document.body.classList.toggle('theme-summer', theme === 'summer')
-  document.body.classList.toggle('theme-winter', theme !== 'summer')
+  document.body.classList.toggle('theme-hacking', theme === 'hacking')
+  document.body.classList.toggle(
+    'theme-winter',
+    theme === 'winter' || !['summer', 'hacking'].includes(theme)
+  )
   document.body.dataset.theme = theme
 
   saveUISettings()
@@ -1374,6 +1560,157 @@ function logProxy(proxy, type, message) {
   logBox.appendChild(li)
   if (scroll) {
     logBox.scrollTop = logBox.scrollHeight
+  }
+}
+
+function logAternos(server, type, message, count) {
+  const isSuccess = type === 'success'
+  const serverKey = String(server || '')
+    .trim()
+    .toLowerCase()
+  if (isSuccess && serverKey) {
+    if (aternosLoggedSuccessServers.has(serverKey)) return
+    aternosLoggedSuccessServers.add(serverKey)
+  }
+
+  const logBox = document.getElementById(isSuccess ? 'aternosSuccessLogbox' : 'aternosFailLogbox')
+  if (!logBox) return
+
+  const li = document.createElement('li')
+  li.className = type
+
+  const top = document.createElement('div')
+  top.className = 'space-h'
+
+  const name = document.createElement('p')
+  name.className = 'text-sm'
+  name.style = 'user-select: text;'
+  name.textContent = server || 'Aternos'
+
+  const state = document.createElement('p')
+  state.className = 'text-sm'
+  state.textContent = count || type
+
+  const body = document.createElement('p')
+  body.className = 'text-sm-2 mu-1'
+  body.style = 'user-select: text;'
+  body.textContent = message || type
+
+  top.appendChild(name)
+  top.appendChild(state)
+  li.appendChild(top)
+  li.appendChild(body)
+  logBox.appendChild(li)
+  while (logBox.children.length > 300) {
+    logBox.firstElementChild?.remove()
+  }
+
+  if (document.getElementById('autoScrollAternos')?.checked) {
+    logBox.scrollTop = logBox.scrollHeight
+  }
+}
+
+function handleAternosEvent(info) {
+  updateAternosStats(info)
+  if (info.event === 'stop') {
+    if (typeof info.count === 'object') {
+      flushAllAternosLogs()
+    } else {
+      clearAternosLogQueue()
+    }
+  }
+  if (['success', 'fail'].includes(info.event)) {
+    queueAternosLog(info.server, info.event, info.message, formatAternosCount(info.count))
+  }
+}
+
+function clearAternosLogQueue() {
+  aternosLogQueue.length = 0
+  if (aternosLogFlushTimer) {
+    clearTimeout(aternosLogFlushTimer)
+    aternosLogFlushTimer = undefined
+  }
+}
+
+function queueAternosLog(server, type, message, count) {
+  aternosLogQueue.push({ server, type, message, count })
+  if (aternosLogQueue.length > 1000) {
+    aternosLogQueue.splice(0, aternosLogQueue.length - 1000)
+  }
+  if (aternosLogFlushTimer) return
+  aternosLogFlushTimer = setTimeout(flushAternosLogs, 120)
+}
+
+function flushAternosLogs() {
+  aternosLogFlushTimer = undefined
+  const batch = aternosLogQueue.splice(0, 80)
+  batch.forEach((item) => {
+    logAternos(item.server, item.type, item.message, item.count)
+  })
+  if (aternosLogQueue.length > 0) {
+    aternosLogFlushTimer = setTimeout(flushAternosLogs, 120)
+  }
+}
+
+function flushAllAternosLogs() {
+  if (aternosLogFlushTimer) {
+    clearTimeout(aternosLogFlushTimer)
+    aternosLogFlushTimer = undefined
+  }
+  while (aternosLogQueue.length > 0) {
+    const item = aternosLogQueue.shift()
+    logAternos(item.server, item.type, item.message, item.count)
+  }
+}
+
+function formatAternosCount(count) {
+  if (!count || typeof count !== 'object') return count || ''
+  return count.progress || `${count.checked || 0}/${count.total || 0}`
+}
+
+function resetAternosStats() {
+  aternosLoggedSuccessServers.clear()
+  clearAternosLogQueue()
+  updateAternosStats({
+    event: 'reset',
+    message: 'Idle',
+    count: {
+      total: 0,
+      queued: 0,
+      active: 0,
+      checked: 0,
+      success: 0,
+      fail: 0,
+      progress: '0/0'
+    }
+  })
+}
+
+function updateAternosStats(info) {
+  const stats = typeof info?.count === 'object' ? info.count : undefined
+  const progress = document.getElementById('aternosProgressText')
+  if (!stats) {
+    if (progress && info?.message) progress.textContent = info.message
+    return
+  }
+
+  const values = {
+    aternosStatTotal: stats.total,
+    aternosStatActive: stats.active,
+    aternosStatQueued: stats.queued,
+    aternosStatChecked: stats.checked,
+    aternosStatSuccess: stats.success,
+    aternosStatFail: stats.fail
+  }
+
+  Object.entries(values).forEach(([id, value]) => {
+    const element = document.getElementById(id)
+    if (element) element.textContent = Number.isFinite(Number(value)) ? String(value) : '0'
+  })
+
+  if (progress) {
+    const label = info.event === 'stop' ? info.message : stats.progress || info.message || 'Running'
+    progress.textContent = label
   }
 }
 

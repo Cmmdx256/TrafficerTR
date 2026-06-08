@@ -51,7 +51,9 @@ export class SpatialReasoningLayer {
     const origin = this.bot?.entity?.position
     if (!origin) return []
     return Object.values(this.bot?.entities || {})
-      .filter((entity) => entity?.position && entity !== this.bot.entity && entity.type !== 'player')
+      .filter(
+        (entity) => entity?.position && entity !== this.bot.entity && entity.type !== 'player'
+      )
       .map((entity) => ({
         name: entity.name || entity.type,
         distance: Number(origin.distanceTo(entity.position).toFixed(1)),

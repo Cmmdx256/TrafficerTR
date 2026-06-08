@@ -1,6 +1,6 @@
 {
   "name": "trafficertr",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "TrafficerTR Minecraft botting tool with Anti-AFK, chat, scripting, autonomous AI mode, inventory, and movement controls.",
   "main": "./out/main/index.js",
   "author": "Glock",
@@ -23,6 +23,7 @@
     "minecraft-protocol": "^1.66.2",
     "mineflayer": "^4.37.1",
     "mineflayer-pathfinder": "^2.4.5",
+    "requests": "^0.3.0",
     "socks": "^2.8.3"
   },
   "devDependencies": {
@@ -36,6 +37,7 @@
     "vite": "^7.3.3"
   },
   "allowScripts": {
-    "electron@39.8.10": true
+    "electron@39.8.10": true,
+    "minecraft-protocol@1.66.2": true
   }
 }

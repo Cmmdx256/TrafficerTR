@@ -1,6 +1,10 @@
-const mc = require('minecraft-protocol')
+import '../misc/protocolCompatibility'
+import { createRequire } from 'node:module'
 import { connection } from './proxyhandler'
 import { resolveMinecraftVersion, salt } from '../misc/utils'
+
+const require = createRequire(import.meta.url)
+const getMinecraftProtocol = () => require('minecraft-protocol')
 
 export function checkProxy(
   proxyType,
@@ -14,7 +18,7 @@ export function checkProxy(
   version
 ) {
   return new Promise((resolve, reject) => {
-    const bot = mc.createClient({
+    const bot = getMinecraftProtocol().createClient({
       host: dHost,
       port: parseInt(dPort),
       username: salt(10),

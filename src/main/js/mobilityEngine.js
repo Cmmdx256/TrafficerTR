@@ -439,7 +439,8 @@ export class GeminiMobilityEngine {
     const hasBoat = analysis.resources?.items?.some((item) => item.includes('boat'))
     if (analysis.threats?.length) solutions.push({ type: 'escape', score: 95 })
     if (analysis.hazard) solutions.push({ type: 'avoid_hazard', score: 90 })
-    if (this.isPathFailure(analysis.pathStatus)) solutions.push({ type: 'dynamic_replan', score: 88 })
+    if (this.isPathFailure(analysis.pathStatus))
+      solutions.push({ type: 'dynamic_replan', score: 88 })
     if (analysis.fallRisk > 3 && hasBlocks) solutions.push({ type: 'bridge_gap', score: 82 })
     if (analysis.water)
       solutions.push({ type: hasBoat ? 'boat_navigation' : 'water_navigation', score: 75 })
@@ -456,7 +457,10 @@ export class GeminiMobilityEngine {
 
   isPathFailure(status) {
     const normalized = normalizePathStatus(status)
-    return PATH_FAILURE_STATUSES.has(normalized) || /no.?path|timeout|stuck|partial|fail/i.test(normalized)
+    return (
+      PATH_FAILURE_STATUSES.has(normalized) ||
+      /no.?path|timeout|stuck|partial|fail/i.test(normalized)
+    )
   }
 
   selectRecoverySolution(analysis = {}) {
@@ -464,8 +468,7 @@ export class GeminiMobilityEngine {
     const recent = this.recoveryHistory.slice(-5).map((entry) => entry.type)
     return (
       solutions.find((solution) => recent.filter((type) => type === solution.type).length < 2) ||
-      solutions[0] ||
-      { type: 'smooth_path', score: 0 }
+      solutions[0] || { type: 'smooth_path', score: 0 }
     )
   }
 
@@ -651,7 +654,12 @@ export class GeminiMobilityEngine {
         const key = keyFromPosition(candidate)
         return (this.routeBlacklist.get(key) || 0) <= Date.now()
       })
-      .sort((a, b) => this.distanceTo(a) + this.distanceBetween(a, target) - (this.distanceTo(b) + this.distanceBetween(b, target)))
+      .sort(
+        (a, b) =>
+          this.distanceTo(a) +
+          this.distanceBetween(a, target) -
+          (this.distanceTo(b) + this.distanceBetween(b, target))
+      )
       .slice(0, 8)
   }
 
@@ -667,7 +675,9 @@ export class GeminiMobilityEngine {
         }
       }
     }
-    return candidates.sort((a, b) => this.distanceBetween(a, target) - this.distanceBetween(b, target)).slice(0, 3)
+    return candidates
+      .sort((a, b) => this.distanceBetween(a, target) - this.distanceBetween(b, target))
+      .slice(0, 3)
   }
 
   distanceBetween(a, b) {
@@ -829,7 +839,13 @@ export class GeminiMobilityEngine {
       const pathfinderNoPath =
         this.isPathFailure(analysis.pathStatus) && now - lastGoalSetAt > Math.min(2500, watchdogMs)
       const watchdogExpired = now - lastMovementAt > watchdogMs
-      const recoveryReason = pathfinderNoPath ? 'noPath' : watchdogExpired ? 'watchdog' : stuckScore >= 3 ? 'stuck' : ''
+      const recoveryReason = pathfinderNoPath
+        ? 'noPath'
+        : watchdogExpired
+          ? 'watchdog'
+          : stuckScore >= 3
+            ? 'stuck'
+            : ''
       const recoveryCooldownActive =
         this.state === MOBILITY_STATES.RECOVERING &&
         recoveryReason === lastRecoveryReason &&
@@ -930,7 +946,8 @@ export class GeminiMobilityEngine {
 
   async reach(position, options = {}) {
     position = toVec3(position)
-    if (!position) return { ok: false, reason: 'invalid_reach_position', state: MOBILITY_STATES.FAILED }
+    if (!position)
+      return { ok: false, reason: 'invalid_reach_position', state: MOBILITY_STATES.FAILED }
     const analysis = this.analyzeEnvironment(position)
     this.emit('reach_requested', {
       target: this.formatPosition(position),

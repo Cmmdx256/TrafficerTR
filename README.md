@@ -10,13 +10,13 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 
 ## Current Version
 
-- App build: TrafficerTR v1.3
-- Package version: v1.3.0
+- App build: TrafficerTR v1.4
+- Package version: v1.4.0
 - AI provider: Gemini only
 - Default Gemini model: `gemini-flash-latest`
 - Legacy Ollama/local AI has been removed
 
-## Added In v1.3
+## Added In v1.4
 
 - Nuker is now active in the Botting controls.
 - Simple Nuker range slider: a value of `N` targets an `N x N` horizontal area around the bot.
@@ -27,7 +27,7 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 - Nuker Turkish/English UI translations.
 - Nuker no longer depends on the bot's look direction when Simple range is used.
 - Nuker avoids digging the bot's own support block in Simple range mode.
-- App title/version label updated to v1.3.
+- App title/version label updated to v1.4.
 
 ## Added In v1.2 Fixed
 
@@ -71,7 +71,7 @@ GitHub: [Cmmdx256/TrafficerTR](https://github.com/Cmmdx256/TrafficerTR)
 - AI Mode is still marked `BETA / UNDERMAINTENANCE` while the intent-driven autonomous agent layer is being stabilized.
 - Nuker is active, but server anti-cheat/protocol behavior can still limit instant block breaking on some servers.
 - Some premium-labeled controls remain disabled.
-- Minecraft `26.1`, `26.1.1`, and `26.1.2` remain listed but disabled until native protocol support is reliable.
+- Minecraft `26.1`, `26.1.1`, and `26.1.2` are selectable. The app uses native package support when available and falls back to TrafficerTR's compatibility bridge when needed.
 
 ## In Development
 
@@ -221,7 +221,7 @@ npm run build:win
 
 ## Developer
 
-Maintained by Glock (Cmmdx).
+Maintained by Glock (Cmmdx256).
 
 TrafficerTR is being developed toward a persistent autonomous Minecraft Agent OS, with Gemini as the strategic cortex and deterministic engines as the body.
 

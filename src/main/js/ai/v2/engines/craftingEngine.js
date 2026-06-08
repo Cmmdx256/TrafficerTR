@@ -5,6 +5,10 @@ export class CraftingEngine {
   }
 
   async craft(item, args = {}, context = {}) {
-    return this.skills.execute('craft_item', { ...args, item, dependencies: this.knowledgeGraph?.dependencies?.(item) || [] }, context)
+    return this.skills.execute(
+      'craft_item',
+      { ...args, item, dependencies: this.knowledgeGraph?.dependencies?.(item) || [] },
+      context
+    )
   }
 }

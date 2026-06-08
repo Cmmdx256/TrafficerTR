@@ -10,11 +10,17 @@ export class MiningEngine {
   }
 
   plan(resource = 'ore', args = {}, context = {}) {
-    const normalized = this.brain?.normalizeMiningResource?.(resource || args.resource || args.target) || resource
+    const normalized =
+      this.brain?.normalizeMiningResource?.(resource || args.resource || args.target) || resource
     const requiredTool = this.brain?.requiredToolFor?.(normalized)
     const ore = this.brain?.oreProfile?.(normalized)
-    const inventory = context.observation?.world?.inventory || context.observation?.local?.inventorySummary || undefined
-    const readiness = ore ? this.brain?.canMineOre?.(ore, inventory) : this.brain?.miningReadiness?.(normalized, inventory)
+    const inventory =
+      context.observation?.world?.inventory ||
+      context.observation?.local?.inventorySummary ||
+      undefined
+    const readiness = ore
+      ? this.brain?.canMineOre?.(ore, inventory)
+      : this.brain?.miningReadiness?.(normalized, inventory)
     return {
       resource: normalized,
       requiredTool,
@@ -31,7 +37,10 @@ export class MiningEngine {
   }
 
   readiness(resource = 'ore', context = {}) {
-    const inventory = context.observation?.world?.inventory || context.observation?.local?.inventorySummary || undefined
+    const inventory =
+      context.observation?.world?.inventory ||
+      context.observation?.local?.inventorySummary ||
+      undefined
     return this.brain?.miningReadiness?.(resource, inventory)
   }
 }

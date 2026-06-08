@@ -126,13 +126,33 @@ export class MinecraftBrain {
 
   miningProgression() {
     return [
-      { stage: 'bootstrap', goal: 'wooden_pickaxe', reason: 'stone and coal require at least a wooden pickaxe' },
-      { stage: 'stone_tools', goal: 'stone_pickaxe', reason: 'iron, copper, and lapis require stone tier mining' },
+      {
+        stage: 'bootstrap',
+        goal: 'wooden_pickaxe',
+        reason: 'stone and coal require at least a wooden pickaxe'
+      },
+      {
+        stage: 'stone_tools',
+        goal: 'stone_pickaxe',
+        reason: 'iron, copper, and lapis require stone tier mining'
+      },
       { stage: 'fuel', goal: 'coal', reason: 'fuel and torches make deeper mining safer' },
       { stage: 'iron', goal: 'iron', reason: 'iron unlocks iron pickaxe and armor progression' },
-      { stage: 'iron_tools', goal: 'iron_pickaxe', reason: 'diamond, redstone, gold, and emerald require iron tier mining' },
-      { stage: 'diamond', goal: 'diamond', reason: 'diamond unlocks obsidian and netherite progression' },
-      { stage: 'diamond_tools', goal: 'diamond_pickaxe', reason: 'ancient debris requires diamond tier mining' },
+      {
+        stage: 'iron_tools',
+        goal: 'iron_pickaxe',
+        reason: 'diamond, redstone, gold, and emerald require iron tier mining'
+      },
+      {
+        stage: 'diamond',
+        goal: 'diamond',
+        reason: 'diamond unlocks obsidian and netherite progression'
+      },
+      {
+        stage: 'diamond_tools',
+        goal: 'diamond_pickaxe',
+        reason: 'ancient debris requires diamond tier mining'
+      },
       { stage: 'netherite', goal: 'ancient_debris', reason: 'highest mining progression target' }
     ]
   }
@@ -166,7 +186,10 @@ export class MinecraftBrain {
           {
             name: 'build_emergency_shelter',
             requires: ['dirt:24', 'torch:2'],
-            action: { skill: 'build_structure', args: { structure: 'emergency_shelter', block: 'dirt' } },
+            action: {
+              skill: 'build_structure',
+              args: { structure: 'emergency_shelter', block: 'dirt' }
+            },
             risk: 1,
             time: 3,
             efficiency: 7
@@ -200,7 +223,10 @@ export class MinecraftBrain {
   }
 
   itemById(id) {
-    return this.bot?.registry?.items?.[id] || this.bot?.registry?.itemsArray?.find?.((item) => item.id === id)
+    return (
+      this.bot?.registry?.items?.[id] ||
+      this.bot?.registry?.itemsArray?.find?.((item) => item.id === id)
+    )
   }
 
   hasItem(name) {
@@ -228,9 +254,14 @@ export class MinecraftBrain {
         name: key,
         solutions: [
           {
-            name: mineable ? `mine_best_available_${resource}` : `prepare_for_mining_${missing?.requiredTool || 'wooden_pickaxe'}`,
+            name: mineable
+              ? `mine_best_available_${resource}`
+              : `prepare_for_mining_${missing?.requiredTool || 'wooden_pickaxe'}`,
             requires: mineable ? [] : [missing?.requiredTool || 'wooden_pickaxe'],
-            action: { skill: 'gather_resource', args: { resource: mineable ? resource : 'ore', count: 1, range: 96 } },
+            action: {
+              skill: 'gather_resource',
+              args: { resource: mineable ? resource : 'ore', count: 1, range: 96 }
+            },
             risk: mineable ? 3 : 1,
             time: mineable ? 5 : 2,
             efficiency: mineable ? 8 : 5
@@ -300,7 +331,12 @@ export class MinecraftBrain {
           {
             name: `gather_${key}`,
             requires: ore?.requiredTool ? [ore.requiredTool] : [],
-            action: { skill: this.isWood(key) ? 'gather_wood' : 'gather_resource', args: this.isWood(key) ? { count: 1, range: 96 } : { resource: this.normalizeMiningResource(key), count: 1, range: 96 } },
+            action: {
+              skill: this.isWood(key) ? 'gather_wood' : 'gather_resource',
+              args: this.isWood(key)
+                ? { count: 1, range: 96 }
+                : { resource: this.normalizeMiningResource(key), count: 1, range: 96 }
+            },
             risk: ore ? Math.max(1, ore.tier) : this.requiredToolFor(key) ? 3 : 1,
             time: ore?.dimension === 'nether' ? 8 : 3,
             efficiency: ore ? Math.max(4, Math.round(ore.priority / 12)) : 6
@@ -336,7 +372,12 @@ export class MinecraftBrain {
       madenler: 'ore'
     }
     for (const [oreName, ore] of Object.entries(this.oreCatalog)) {
-      if (oreName === key || ore.aliases?.map(normalizeName).includes(key) || ore.blocks.includes(key) || ore.drops.includes(key)) {
+      if (
+        oreName === key ||
+        ore.aliases?.map(normalizeName).includes(key) ||
+        ore.blocks.includes(key) ||
+        ore.drops.includes(key)
+      ) {
         return oreName
       }
     }
@@ -352,9 +393,16 @@ export class MinecraftBrain {
   oreProfile(target) {
     const key = normalizeName(target)
     const resolved = this.resolveAlias(key)
-    return this.oreCatalog[resolved] || Object.values(this.oreCatalog).find((ore) => {
-      return ore.blocks.includes(key) || ore.drops.includes(key) || ore.aliases?.map(normalizeName).includes(key)
-    })
+    return (
+      this.oreCatalog[resolved] ||
+      Object.values(this.oreCatalog).find((ore) => {
+        return (
+          ore.blocks.includes(key) ||
+          ore.drops.includes(key) ||
+          ore.aliases?.map(normalizeName).includes(key)
+        )
+      })
+    )
   }
 
   allOreBlockNames() {
@@ -379,7 +427,9 @@ export class MinecraftBrain {
   hasToolTier(requiredTool, inventory = this.bot?.inventory?.items?.()) {
     if (!requiredTool) return true
     const tier = this.toolTier(requiredTool)
-    return (inventory || []).some((item) => /pickaxe/.test(item.name) && this.toolTier(item.name) >= tier)
+    return (inventory || []).some(
+      (item) => /pickaxe/.test(item.name) && this.toolTier(item.name) >= tier
+    )
   }
 
   bestPickaxe(inventory = this.bot?.inventory?.items?.()) {
@@ -498,7 +548,13 @@ export class MinecraftBrain {
     const ore = this.oreProfile(key)
     if (ore?.requiredTool) return ore.requiredTool
     if (key.includes('diamond')) return 'iron_pickaxe'
-    if (key.includes('iron') || key.includes('gold') || key.includes('redstone') || key.includes('lapis')) return 'stone_pickaxe'
+    if (
+      key.includes('iron') ||
+      key.includes('gold') ||
+      key.includes('redstone') ||
+      key.includes('lapis')
+    )
+      return 'stone_pickaxe'
     if (key.includes('stone') || key.includes('ore')) return 'wooden_pickaxe'
     return undefined
   }

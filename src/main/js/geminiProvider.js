@@ -232,7 +232,9 @@ export class GeminiProvider extends LLMProvider {
           else this.metrics.failures++
 
           if (!response.ok) {
-            const message = explainGeminiError(data.error?.message || `gemini_http_${response.status}`)
+            const message = explainGeminiError(
+              data.error?.message || `gemini_http_${response.status}`
+            )
             this.metrics.lastError = message
             lastError = new Error(message)
             if (this.isRetryableError(response, data)) {
@@ -261,7 +263,9 @@ export class GeminiProvider extends LLMProvider {
     }
 
     this.metrics.failures++
-    this.metrics.lastError = explainGeminiError(lastError?.message || lastError?.name || 'gemini_error')
+    this.metrics.lastError = explainGeminiError(
+      lastError?.message || lastError?.name || 'gemini_error'
+    )
     return { ok: false, error: this.metrics.lastError, text: '', json: undefined }
   }
 

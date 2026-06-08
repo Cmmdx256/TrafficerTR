@@ -1,5 +1,6 @@
 /* eslint-disable no-case-declarations */
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import './js/misc/protocolCompatibility'
 import { join } from 'path'
 import crypto from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -21,8 +22,10 @@ import {
 } from './js/misc/utils'
 import { applyElyByAuth } from './js/misc/customAuth'
 import { createGeminiMinecraftController } from './js/geminiController'
+import { createGeminiProvider } from './js/geminiProvider'
 import { createMobilityEngine } from './js/mobilityEngine'
 import { createTrafficerAIV2Runtime } from './js/ai/v2/runtime'
+import { runAternosDiscovery, runAternosServerCheck } from './js/aternos/discovery'
 import EventEmitter from 'node:events'
 const Store = require('electron-store')
 const mineflayer = require('mineflayer')
@@ -33,7 +36,7 @@ import { antiafk } from './js/misc/antiafk'
 const botApi = new EventEmitter()
 botApi.setMaxListeners(0)
 const store = new Store()
-const suspendedBotControls = new Set(['interact'])
+const suspendedBotControls = new Set()
 const UPDATE_REPO = 'Cmmdx256/TrafficerTR'
 const UPDATE_API_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`
 const UPDATE_RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases/latest`
@@ -41,6 +44,7 @@ const UPDATE_RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases/latest`
 let stopBot = false
 let stopScript = false
 let stopProxyTest = false
+let stopAternosCheck = false
 let currentProxy = 0
 let proxyUsed = 0
 
@@ -67,10 +71,6 @@ function getConfiguredAiModel() {
     return process.env.GEMINI_MODEL || 'gemini-flash-latest'
   }
   return configured
-}
-
-function getConfiguredAiProvider() {
-  return 'gemini'
 }
 
 function getConfiguredGeminiApiKey() {
@@ -176,10 +176,20 @@ function formatKickReason(reason) {
 }
 
 function appendVersionHint(message) {
-  if (!isSuspendedMinecraftVersion(storeinfo()?.value?.version)) return message
   const text = String(message || '')
-  if (!/outdated client|differentVersionError|please use 26\.1/i.test(text)) return text
-  return `${text} - 26.1.x is disabled until native protocol support is available.`
+  const selectedVersion = String(storeinfo()?.value?.version || '')
+  if (
+    /^26\.1/.test(selectedVersion) &&
+    /Parse error for play\.toClient|array size is abnormally large|No data available for version 26\.1/i.test(
+      text
+    )
+  ) {
+    return [
+      text,
+      'Java 26.1.x cannot be enabled safely yet because minecraft-data does not ship a real 26.1 protocol schema. Use 1.21.11 until PrismarineJS publishes data/pc/26.1/protocol.json.'
+    ].join(' - ')
+  }
+  return text
 }
 
 function getWebhookUrl() {
@@ -466,6 +476,44 @@ function proxyEvent(proxy, event, message, count) {
   }
 }
 
+function aternosEvent(server, event, message, count) {
+  BrowserWindow.getAllWindows()[0]?.webContents.send('aternosEvent', {
+    server,
+    event,
+    message,
+    count
+  })
+}
+
+function parseAternosServerList(text, { randomOrder = false } = {}) {
+  const allowedDomains = ['aternos.me', 'aternos.host']
+  const rawItems = String(text || '')
+    .split(/\r?\n|,/)
+    .map((line) => line.trim().toLowerCase())
+    .filter(Boolean)
+  const items = []
+  const seen = new Set()
+
+  for (const raw of rawItems) {
+    const withoutProtocol = raw.replace(/^minecraft:\/\//, '').replace(/^https?:\/\//, '')
+    const [hostPart, portPart] = withoutProtocol.split(':')
+    const host = hostPart.includes('.') ? hostPart : `${hostPart}.aternos.me`
+    const domainOk = allowedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`))
+    if (!domainOk) return { error: `Invalid Aternos host: ${raw}`, items: [] }
+    if (!/^[a-z0-9][a-z0-9.-]{1,80}[a-z0-9]$/.test(host)) {
+      return { error: `Invalid server name: ${raw}`, items: [] }
+    }
+    const port = clampNumber(portPart || 25565, 1, 65535, 25565)
+    const key = `${host}:${port}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push({ host, port })
+  }
+
+  if (randomOrder) items.sort(() => Math.random() - 0.5)
+  return { items }
+}
+
 function notify(title, body, type, img, keep) {
   sendRendererNotify(title, body, type, img, keep)
   sendWebhook('feedback', title, body || '-', [], {
@@ -476,13 +524,10 @@ function notify(title, body, type, img, keep) {
 function canUseSelectedVersion() {
   const selectedVersion = configValue('version', '')
   if (!isSuspendedMinecraftVersion(selectedVersion)) return true
-  notify(
-    'Version disabled',
-    '26.1.x support is paused until Mineflayer/minecraft-protocol adds native support.',
-    'error',
-    undefined,
-    true
-  )
+  const reason = /^26\.1/.test(String(selectedVersion))
+    ? 'Java 26.1.x is listed by protocol number, but the required packet schema is not available in minecraft-data yet. Use 1.21.11 for now.'
+    : 'This Minecraft version is currently disabled.'
+  notify('Version disabled', reason, 'error', undefined, true)
   return false
 }
 
@@ -766,7 +811,7 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.cmmdx.trafficertr')
+  electronApp.setAppUserModelId('com.cmmdx256.trafficertr')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -798,11 +843,129 @@ ipcMain.on('checkboxClick', (event, id, state) => {
     case 'aiMode':
       exeAll(`pathfinder ai ${state ? 'on' : 'off'}`)
       break
+    case 'instantMode':
+      // Instant mode checkbox is just UI state, will be checked in connectBot
+      break
     case 'test':
       console.log(state)
       break
     default:
   }
+})
+
+ipcMain.handle('generateScriptWithAi', async () => {
+  const prompt = String(configValue('scriptAiPrompt', '') || '').trim()
+  if (!prompt) return { ok: false, error: 'Script AI prompt is empty' }
+  const apiKey = getConfiguredGeminiApiKey()
+  if (!apiKey) return { ok: false, error: 'Gemini API key is missing' }
+
+  const provider = createGeminiProvider({
+    apiKey,
+    model: getConfiguredAiModel()
+  })
+  const system = [
+    'You write scripts only for TrafficerTR scripting.',
+    'Return only plain script text. No markdown, no explanation.',
+    'Allowed commands: chat, delay, repeat, end, log, select, sethotbar, useheld, startmove, stopmove, resetmove, afkon, afkoff, interact, pathfinder.',
+    'Use delay between repeated actions. Keep scripts safe and short.',
+    'Do not include credentials, external links, file system commands, shell commands, or destructive code.',
+    'Use placeholders only when useful: {player}, {username}, {random:6}, {time}.'
+  ].join('\n')
+  const request = [
+    'User wants a TrafficerTR script.',
+    `Request: ${prompt}`,
+    '',
+    'Generate a valid script for this parser:',
+    '- Comments may start with #',
+    '- repeat N starts a block and must end with end',
+    '- delay accepts milliseconds or a range like delay 500 1500',
+    '- chat sends chat text',
+    '- select selected chat Hello sends a command to selected bots',
+    '- useheld can optionally receive right or left',
+    '- interact syntax: interact <left|right> <main|offhand> <x y z>'
+  ].join('\n')
+  const response = await provider.complete(request, { system, format: 'text' })
+  if (!response.ok) return { ok: false, error: response.error || 'Gemini script generation failed' }
+  const script = sanitizeGeneratedScript(response.text)
+  try {
+    const commands = parseScript(script)
+    validateGeneratedScriptCommands(commands)
+  } catch (error) {
+    return { ok: false, error: `Generated script is invalid: ${error.message}` }
+  }
+  return { ok: true, script }
+})
+
+ipcMain.handle('startAternosCheck', async (event, options = {}) => {
+  const randomOrder = Boolean(options.randomOrder || configBoolean('aternosRandomOrder'))
+  const concurrency = clampNumber(
+    options.concurrency || configValue('aternosConcurrency', 4),
+    1,
+    12,
+    4
+  )
+  const timeout = clampNumber(
+    options.timeout || configValue('aternosTimeout', 5000),
+    1500,
+    15000,
+    5000
+  )
+  const servers = parseAternosServerList(configValue('aternosServerList', ''), { randomOrder })
+  if (servers.error) return { ok: false, error: servers.error }
+  if (servers.items.length === 0) return { ok: false, error: 'Aternos server list is empty' }
+
+  stopAternosCheck = false
+  runAternosServerCheck(servers.items, {
+    concurrency,
+    timeout,
+    outputPath: join(app.getPath('userData'), 'discovered_aternos_results.json'),
+    shouldStop: () => stopAternosCheck,
+    onEvent: aternosEvent
+  }).catch((error) => {
+    aternosEvent('Aternos', 'fail', error.message || 'Aternos check failed', '')
+  })
+  return { ok: true, count: servers.items.length, concurrency, timeout }
+})
+
+ipcMain.handle('startAternosDiscovery', async (event, options = {}) => {
+  const targetCount = clampNumber(
+    options.targetCount || configValue('aternosDiscoveryTargetCount', 5000),
+    10,
+    100000,
+    5000
+  )
+  const concurrency = clampNumber(
+    options.concurrency || configValue('aternosConcurrency', 10),
+    1,
+    30,
+    10
+  )
+  const timeout = clampNumber(
+    options.timeout || configValue('aternosTimeout', 3000),
+    1500,
+    15000,
+    3000
+  )
+
+  stopAternosCheck = false
+  runAternosDiscovery({
+    targetCount,
+    concurrency,
+    timeout,
+    outputPath: join(app.getPath('userData'), 'discovered_aternos_results.json'),
+    statePath: join(app.getPath('userData'), 'aternos_discovery_state.json'),
+    logFailures: true,
+    shouldStop: () => stopAternosCheck,
+    onEvent: aternosEvent
+  }).catch((error) => {
+    aternosEvent('Aternos', 'fail', error.message || 'Aternos discovery failed', '')
+  })
+  return { ok: true, count: targetCount, concurrency, timeout }
+})
+
+ipcMain.on('stopAternosCheck', () => {
+  stopAternosCheck = true
+  aternosEvent('Aternos', 'stop', 'Stopped Aternos task.', '')
 })
 
 ipcMain.on('openExternal', (event, url) => {
@@ -815,14 +978,18 @@ ipcMain.on('openExternal', (event, url) => {
   shell.openExternal(url)
 })
 
-ipcMain.on('btnClick', (event, btn) => {
+ipcMain.on('btnClick', (event, btn, options = {}) => {
   if (btn !== 'webhookTest') {
     sendWebhook('action', 'UI Action', `Button pressed: ${btn}`)
   }
 
   switch (btn) {
     case 'btnStart':
-      connectBot()
+      if (options.instantMode) {
+        instantConnect()
+      } else {
+        connectBot()
+      }
       break
     case 'btnStop':
       stopBot = true
@@ -838,7 +1005,7 @@ ipcMain.on('btnClick', (event, btn) => {
       exeAll('sethotbar ' + configValue('hotbarSlot', 0))
       break
     case 'btnUseheld':
-      exeAll('useheld')
+      exeAll('useheld ' + configValue('useHeldHand', 'main'))
       break
     case 'btnWinClickRight':
       exeAll('winclick ' + configValue('invSlot', 0) + ' 1')
@@ -874,10 +1041,23 @@ ipcMain.on('btnClick', (event, btn) => {
       exeAll('afkoff')
       break
     case 'btnInteractLeft':
-      exeAll('interact left ' + configValue('interactCoords', ''))
+      exeAll(
+        ['interact', 'left', configValue('interactHand', 'main'), configValue('interactCoords', '')]
+          .filter(Boolean)
+          .join(' ')
+      )
       break
     case 'btnInteractRight':
-      exeAll('interact right ' + configValue('interactCoords', ''))
+      exeAll(
+        [
+          'interact',
+          'right',
+          configValue('interactHand', 'main'),
+          configValue('interactCoords', '')
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
       break
     case 'btnKillauraOnce':
       exeAll(
@@ -1043,6 +1223,49 @@ function parseScript(scriptText) {
   }
 
   return commands
+}
+
+function sanitizeGeneratedScript(text) {
+  return String(text || '')
+    .replace(/```(?:\w+)?/g, '')
+    .replace(/```/g, '')
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => !/^\s*(explanation|açıklama|script:)\s*$/i.test(line))
+    .join('\n')
+    .trim()
+}
+
+function validateGeneratedScriptCommands(commands) {
+  const allowed = new Set([
+    'chat',
+    'delay',
+    'log',
+    'print',
+    'select',
+    'target',
+    'sethotbar',
+    'useheld',
+    'startmove',
+    'stopmove',
+    'resetmove',
+    'afkon',
+    'afkoff',
+    'interact',
+    'pathfinder'
+  ])
+  const visit = (items) => {
+    for (const item of items) {
+      if (item.type === 'repeat') {
+        visit(item.body || [])
+        continue
+      }
+      if (!allowed.has(item.command)) {
+        throw new Error(`Line ${item.lineNumber}: AI generated unsupported command ${item.command}`)
+      }
+    }
+  }
+  visit(commands)
 }
 
 function parseScriptBlock(lines, cursor, stopAtEnd = false) {
@@ -1367,6 +1590,67 @@ async function connectBot() {
   }
 }
 
+async function instantConnect() {
+  stopBot = false
+  if (!(await canUseSelectedVersion())) return
+
+  const nameType = configValue('nameType', 'default')
+  let botInfo
+
+  switch (nameType) {
+    case 'random':
+      botInfo = getBotInfo(salt(10))
+      break
+    case 'legit':
+      botInfo = getBotInfo(genName())
+      break
+    case 'file':
+      if (!storeinfo()?.namefile) {
+        notify('Error', 'Please select name file', 'error')
+      } else {
+        const filePath = storeinfo().namefile
+        const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/)
+        botInfo = getBotInfo(lines[0])
+      }
+      break
+    default:
+      if (!configValue('username', '')) return notify('Error', 'Please insert username', 'error')
+      botInfo = getBotInfo(configValue('username', ''))
+  }
+
+  if (!botInfo) return
+
+  // Instant mode: silent join, send message if any, quick disconnect
+  botInfo.joinMessage = ''
+  const chatMsg = configValue('chatMsg', '')
+
+  // Create and connect bot
+  newBot(botInfo)
+
+  // Wait for bot to fully connect and spawn (300-500ms should be enough for most servers)
+  await delay(350)
+
+  // Send chat message if configured
+  if (chatMsg) {
+    try {
+      botApi.emit('botEvent', botInfo.username, 'chat', [chatMsg])
+      await delay(50)
+    } catch (e) {
+      console.log('Instant mode chat error:', e.message)
+    }
+  }
+
+  // Disconnect bot immediately (instant mode - should complete within 100-150ms total)
+  await delay(100)
+  try {
+    botApi.emit('botEvent', botInfo.username, 'disconnect', [])
+  } catch (e) {
+    console.log('Instant mode disconnect error:', e.message)
+  }
+
+  notify('Info', 'Instant mode executed', 'success')
+}
+
 function getBotInfo(botName) {
   const server = configValue('server', 'localhost:25565')
   const [serverHost, serverPort] = server.split(':')
@@ -1529,13 +1813,30 @@ function newBot(options) {
     })
   }
 
-  bot = mineflayer.createBot({
-    ...options,
-    plugins: pluginOptions,
-    onMsaCode: (data) => {
-      sendEvent(options.username, 'authmsg', data.user_code)
-    }
-  })
+  try {
+    bot = mineflayer.createBot({
+      ...options,
+      plugins: pluginOptions,
+      onMsaCode: (data) => {
+        sendEvent(options.username, 'authmsg', data.user_code)
+      }
+    })
+  } catch (error) {
+    const message = appendVersionHint(stringifyConnectionError(error))
+    sendEvent(options.username, 'error', message)
+    sendWebhook(
+      'kick',
+      'Bot Connection Error',
+      message,
+      [
+        { name: 'Bot', value: options.username || '-', inline: true },
+        { name: 'Server', value: `${options.host}:${options.port}`, inline: true },
+        { name: 'Version', value: options.version || 'auto', inline: true }
+      ],
+      { color: webhookColors.error }
+    )
+    return
+  }
   bot.loadPlugin(pathfinder)
 
   let hitTimer = 0
@@ -1579,23 +1880,36 @@ function newBot(options) {
     sendEvent: (message) => sendEvent(bot?._client?.username || options.username, 'chat', message),
     adapters: {
       comeToPlayer: (args = {}, context = {}) =>
-        comeToPlayerIntent(args.player || args.name || args.target || context.username, args.near || 2),
+        comeToPlayerIntent(
+          args.player || args.name || args.target || context.username,
+          args.near || 2
+        ),
       followPlayer: (args = {}, context = {}) =>
-        comeToPlayerIntent(args.player || args.name || args.target || context.username, args.near || 2, {
-          timeoutMs: 60000
-        }),
+        comeToPlayerIntent(
+          args.player || args.name || args.target || context.username,
+          args.near || 2,
+          {
+            timeoutMs: 60000
+          }
+        ),
       protectPlayer: (args = {}, context = {}) =>
         protectPlayerIntent(args.player || args.name || args.target || context.username),
-      gatherWood: (args = {}) => mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96),
+      gatherWood: (args = {}) =>
+        mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96),
       gatherResource: (args = {}) =>
         mineResourceWithBrain(args.resource || args.target || args.block || 'wood', args),
-      craftItem: (args = {}) => craftItemByNames([args.item || args.target].filter(Boolean), args.count || 1),
+      craftItem: (args = {}) =>
+        craftItemByNames([args.item || args.target].filter(Boolean), args.count || 1),
       smeltItem: (args = {}) => smeltAvailableItems(args.item || args.target || args.goal || 'ore'),
       eatFood: () => eatIfHungry(),
       sleep: (args = {}) => sleepInNearestBed(args.range || 32),
       explore: (args = {}) => exploreForObjective(args.reason || args.target || 'v2 exploration'),
       giveItems: (args = {}, context = {}) =>
-        tossInventoryToPlayer(args.player || args.name || context.username, args.item || args.target),
+        tossInventoryToPlayer(
+          args.player || args.name || context.username,
+          args.item || args.target,
+          args.count || args.amount
+        ),
       makeCraftingTableForPlayer: (args = {}, context = {}) =>
         makeCraftingTableForPlayer(args.player || context.username, args.logs || args.count || 3),
       buildStructure: (args = {}) => buildStarterHouse(args),
@@ -1689,7 +2003,8 @@ function newBot(options) {
       ready
     })
     setupPathfinder()
-    if (ready) aiCore.emit('bot.respawn_or_spawn', { position: formatPosition(bot.entity.position) })
+    if (ready)
+      aiCore.emit('bot.respawn_or_spawn', { position: formatPosition(bot.entity.position) })
     if (ready && configBoolean('runOnSpawn')) {
       stopScript = false
       startScript(bot._client.username)
@@ -1786,6 +2101,13 @@ function newBot(options) {
     }
     if (aiMode) {
       handleAiBodyDuringMovement()
+      if (aiSpawnReady && Date.now() - aiLastThink > 6000) {
+        aiLastThink = Date.now()
+        manageInventoryAndEquipment().catch((error) => {
+          sendEvent(bot._client.username, 'chat', `AI inventory error: ${error.message}`)
+        })
+        reportValuableBlocks()
+      }
     }
     if (!aiMode && configBoolean('killauraToggle') && isSelected) {
       killaura()
@@ -1926,8 +2248,59 @@ function newBot(options) {
     }
   }
 
+  function normalizeHand(value) {
+    const hand = normalizeBlockName(value)
+    if (['offhand', 'off_hand', 'off-hand', 'left', 'sol', 'secondary'].includes(hand)) {
+      return 'offhand'
+    }
+    return 'main'
+  }
+
+  function isHandToken(value) {
+    return [
+      'main',
+      'mainhand',
+      'main_hand',
+      'hand',
+      'right',
+      'sag',
+      'offhand',
+      'off_hand',
+      'off-hand',
+      'left',
+      'sol',
+      'secondary'
+    ].includes(normalizeBlockName(value))
+  }
+
+  function swingHand(hand) {
+    bot.swingArm(hand === 'offhand' ? 'left' : 'right')
+  }
+
   async function interactBlock(action, args) {
-    const position = parsePositionArgs(args, bot.entity.position, Math.floor(bot.entity.position.y))
+    const normalizedAction = String(action || 'right').toLowerCase() === 'left' ? 'left' : 'right'
+    const hand = isHandToken(args[0]) ? normalizeHand(args[0]) : 'main'
+    const positionArgs = isHandToken(args[0]) ? args.slice(1) : args
+    const ignoredLegacyPositionArgs = [
+      'main',
+      'hand',
+      'right',
+      'sag',
+      'sağ',
+      'offhand',
+      'off_hand',
+      'off-hand',
+      'left',
+      'sol'
+    ].includes(normalizeBlockName(args[0]))
+      ? args.slice(1)
+      : args
+    void ignoredLegacyPositionArgs
+    const position = parsePositionArgs(
+      positionArgs,
+      bot.entity.position,
+      Math.floor(bot.entity.position.y)
+    )
     if (!position) {
       sendEvent(bot._client.username, 'chat', 'Interact needs coords: x y z or x z')
       return
@@ -1940,21 +2313,29 @@ function newBot(options) {
     }
 
     try {
-      await bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
-      if (action === 'left') {
+      if (configBoolean('interactRotate', true)) {
+        await bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
+      }
+      if (normalizedAction === 'left') {
         if (typeof bot.canDigBlock === 'function' && !bot.canDigBlock(block)) {
-          bot.swingArm('right')
+          swingHand(hand)
           sendEvent(bot._client.username, 'chat', `Interact: cannot dig ${block.name}`)
           return
         }
+        swingHand(hand)
         await bot.dig(block, true)
       } else {
-        await bot.activateBlock(block)
+        if (hand === 'offhand') {
+          swingHand(hand)
+          bot.activateItem(true)
+        } else {
+          await bot.activateBlock(block)
+        }
       }
       sendEvent(
         bot._client.username,
         'chat',
-        `Interact ${action}: ${block.name} @ ${formatPosition(block.position)}`
+        `Interact ${normalizedAction}/${hand}: ${block.name} @ ${formatPosition(block.position)}`
       )
     } catch (error) {
       sendEvent(bot._client.username, 'chat', `Interact error: ${error.message}`)
@@ -2254,7 +2635,10 @@ function newBot(options) {
 
   async function aiLookAtTarget(targetName) {
     const targetText = normalizeCommandText(targetName)
-    if (!targetText || ['unknown', 'nearest', 'nearby', 'around', 'cevre', 'çevre'].includes(targetText)) {
+    if (
+      !targetText ||
+      ['unknown', 'nearest', 'nearby', 'around', 'cevre', 'çevre'].includes(targetText)
+    ) {
       return aiLookAtNearestVisible()
     }
 
@@ -2354,10 +2738,7 @@ function newBot(options) {
       .find((entity) => entity?.position && normalizeCommandText(entity.username) === normalized)
     if (playerEntity) return playerEntity
     return Object.values(bot.entities || {}).find((entity) => {
-      return (
-        entity?.position &&
-        normalizeCommandText(entity.username || entity.name) === normalized
-      )
+      return entity?.position && normalizeCommandText(entity.username || entity.name) === normalized
     })
   }
 
@@ -2375,7 +2756,8 @@ function newBot(options) {
     const text = String(name || '').trim()
     if (text && bot.players[text]?.entity) return text
     const selected = playerList.find(
-      (player) => player !== bot.username && player !== bot._client?.username && bot.players[player]?.entity
+      (player) =>
+        player !== bot.username && player !== bot._client?.username && bot.players[player]?.entity
     )
     if (selected) return selected
     return findNearestPlayerEntity()?.username
@@ -2386,7 +2768,10 @@ function newBot(options) {
     if (!text || ['speaker', 'user', 'player', 'me', 'ben', 'bana', 'owner'].includes(text)) {
       return username
     }
-    if (text === normalizeCommandText(bot.username) || text === normalizeCommandText(bot._client?.username)) {
+    if (
+      text === normalizeCommandText(bot.username) ||
+      text === normalizeCommandText(bot._client?.username)
+    ) {
       return username
     }
     return value
@@ -2547,9 +2932,7 @@ function newBot(options) {
       .filter(
         (block) => block && block.name !== 'air' && !ignoredKeys.has(positionKey(block.position))
       )
-      .sort(
-        (a, b) => rankMineBlock(b, miningTarget) - rankMineBlock(a, miningTarget)
-      )
+      .sort((a, b) => rankMineBlock(b, miningTarget) - rankMineBlock(a, miningTarget))
       .slice(0, clampNumber(count, 1, 8, 1))
 
     return { names, blocks }
@@ -2558,7 +2941,8 @@ function newBot(options) {
   function normalizeMiningRequestTarget(target) {
     const normalized = normalizeBlockName(target)
     if (!normalized) return 'wood'
-    if (['ore', 'ores', 'maden', 'madenler', 'valuable', 'degerli_maden'].includes(normalized)) return 'ore'
+    if (['ore', 'ores', 'maden', 'madenler', 'valuable', 'degerli_maden'].includes(normalized))
+      return 'ore'
     return aiRuntime?.brain?.normalizeMiningResource?.(normalized) || normalized
   }
 
@@ -2569,14 +2953,18 @@ function newBot(options) {
       inventory: bot.inventory?.items?.() || [],
       inNether: bot.game?.dimension === 'the_nether'
     })
-    const priority = Number.isFinite(oreScore) && oreScore !== 0 ? oreScore : fallbackMinePriority(block.name, target)
+    const priority =
+      Number.isFinite(oreScore) && oreScore !== 0
+        ? oreScore
+        : fallbackMinePriority(block.name, target)
     const dangerPenalty = isDangerNear(block.position) ? 35 : 0
     return priority * 10 - distance - dangerPenalty
   }
 
   function fallbackMinePriority(blockName, target = 'ore') {
     const name = normalizeBlockName(blockName)
-    if (!/_ore$|ancient_debris/.test(name) && normalizeMiningRequestTarget(target) !== 'ore') return 30
+    if (!/_ore$|ancient_debris/.test(name) && normalizeMiningRequestTarget(target) !== 'ore')
+      return 30
     if (name.includes('ancient_debris')) return 110
     if (name.includes('diamond')) return 100
     if (name.includes('iron')) return 90
@@ -2607,10 +2995,16 @@ function newBot(options) {
     const target = normalizeMiningRequestTarget(resource)
     const readiness = aiRuntime?.brain?.miningReadiness?.(target, bot.inventory?.items?.())
     const requestedOre = target === 'ore' ? undefined : aiRuntime?.brain?.oreProfile?.(target)
-    const missing = requestedOre ? aiRuntime?.brain?.canMineOre?.(requestedOre, bot.inventory?.items?.()) : undefined
+    const missing = requestedOre
+      ? aiRuntime?.brain?.canMineOre?.(requestedOre, bot.inventory?.items?.())
+      : undefined
     if (target === 'ore' && readiness?.ores?.length && !readiness.ores.some((ore) => ore.canMine)) {
       const requiredTool = readiness.ores[0]?.missing?.requiredTool || 'wooden_pickaxe'
-      sendEvent(bot._client.username, 'chat', `Mining brain: mining needs ${requiredTool} before entering ore collection`)
+      sendEvent(
+        bot._client.username,
+        'chat',
+        `Mining brain: mining needs ${requiredTool} before entering ore collection`
+      )
       return {
         ok: false,
         reason: `missing_required_pickaxe:${requiredTool}`,
@@ -2886,7 +3280,9 @@ function newBot(options) {
         const hostile = ['zombie', 'skeleton', 'creeper', 'spider', 'drowned', 'husk', 'witch']
         return hostile.includes(entity.name) && entity.position.distanceTo(player.position) < 10
       })
-      .sort((a, b) => a.position.distanceTo(player.position) - b.position.distanceTo(player.position))[0]
+      .sort(
+        (a, b) => a.position.distanceTo(player.position) - b.position.distanceTo(player.position)
+      )[0]
 
     if (threat) return huntEntity(threat.name)
     return comeToPlayerIntent(resolvedName, 3, { timeoutMs: 20000 })
@@ -3101,7 +3497,8 @@ function newBot(options) {
 
     let beforeCount = 0
     try {
-      const placementDistance = bot.entity?.position?.distanceTo?.(placement.reference.position) ?? Infinity
+      const placementDistance =
+        bot.entity?.position?.distanceTo?.(placement.reference.position) ?? Infinity
       if (mobility.state !== 'RECOVERING' && placementDistance > 4.5) {
         await mobility.reach(placement.reference.position, { near: 4, timeoutMs: 15000 })
       }
@@ -3218,7 +3615,9 @@ function newBot(options) {
       .map((name) => bot.registry.blocksByName[name]?.id)
       .filter((id) => Number.isFinite(id))
     if (cropIds.length === 0) return { ok: false, reason: 'crop_registry_missing' }
-    const crops = findNearestBlockMatching(cropIds, args.range || 48, args.count || 12).filter(isMatureCrop)
+    const crops = findNearestBlockMatching(cropIds, args.range || 48, args.count || 12).filter(
+      isMatureCrop
+    )
     if (crops.length === 0) return { ok: false, reason: 'no_mature_crops_nearby' }
 
     let harvested = 0
@@ -3236,7 +3635,13 @@ function newBot(options) {
           await bot.equip(seed, 'hand')
           await bot.placeBlock(farmland, new Vec3(0, 1, 0))
           replanted++
-        } catch {}
+        } catch (error) {
+          aiCore.memory?.rememberFailure?.('farm_replant', {
+            crop: cropName,
+            seed: seedName,
+            reason: error.message
+          })
+        }
       }
       await delay(120)
     }
@@ -3248,15 +3653,20 @@ function newBot(options) {
   async function tradeWithNearestVillager(args = {}) {
     const villager = Object.values(bot.entities || {})
       .filter((entity) => entity?.position && entity.name === 'villager')
-      .sort((a, b) => bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position))[0]
+      .sort(
+        (a, b) =>
+          bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+      )[0]
     if (!villager) return { ok: false, reason: 'villager_not_found' }
 
     const reached = await mobility.reach(villager.position, { near: 3, timeoutMs: 18000 })
     if (!reached?.ok) return { ok: false, reason: reached?.reason || 'villager_unreachable' }
-    if (typeof bot.openVillager !== 'function') return { ok: false, reason: 'villager_api_unavailable' }
+    if (typeof bot.openVillager !== 'function')
+      return { ok: false, reason: 'villager_api_unavailable' }
 
     const window = await bot.openVillager(villager).catch((error) => ({ error }))
-    if (!window || window.error) return { ok: false, reason: window?.error?.message || 'villager_open_failed' }
+    if (!window || window.error)
+      return { ok: false, reason: window?.error?.message || 'villager_open_failed' }
     const trades = window.trades || []
     const trade = trades.find((entry) => {
       if (entry.disabled || entry.tradeDisabled) return false
@@ -3412,12 +3822,7 @@ function newBot(options) {
       return { ok: false, reason: 'invalid_block_position' }
     }
     const block = bot.blockAt(position)
-    if (
-      !block ||
-      block.name === 'air' ||
-      block.name === 'cave_air' ||
-      block.name === 'void_air'
-    ) {
+    if (!block || block.name === 'air' || block.name === 'cave_air' || block.name === 'void_air') {
       return { ok: false, reason: 'target_block_not_loaded' }
     }
     const result = await digBlockAutonomously(block)
@@ -3472,8 +3877,22 @@ function newBot(options) {
       craftingtable: ['crafting_table'],
       crafttable: ['crafting_table'],
       masa: ['crafting_table'],
-      kazma: ['wooden_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'golden_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe'],
-      pickaxe: ['wooden_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'golden_pickaxe', 'diamond_pickaxe', 'netherite_pickaxe']
+      kazma: [
+        'wooden_pickaxe',
+        'stone_pickaxe',
+        'iron_pickaxe',
+        'golden_pickaxe',
+        'diamond_pickaxe',
+        'netherite_pickaxe'
+      ],
+      pickaxe: [
+        'wooden_pickaxe',
+        'stone_pickaxe',
+        'iron_pickaxe',
+        'golden_pickaxe',
+        'diamond_pickaxe',
+        'netherite_pickaxe'
+      ]
     }
     ;(aliases[normalizedTarget] || []).forEach((name) => names.add(name))
   }
@@ -3499,7 +3918,24 @@ function newBot(options) {
 
   function trimTurkishItemSuffixes(value) {
     const key = normalizeSearchKey(value)
-    const suffixes = ['leri', 'lari', 'sini', 'sını', 'ini', 'ını', 'unu', 'ünü', 'yi', 'yı', 'yu', 'yü', 'i', 'ı', 'u', 'ü']
+    const suffixes = [
+      'leri',
+      'lari',
+      'sini',
+      'sını',
+      'ini',
+      'ını',
+      'unu',
+      'ünü',
+      'yi',
+      'yı',
+      'yu',
+      'yü',
+      'i',
+      'ı',
+      'u',
+      'ü'
+    ]
     for (const suffix of suffixes) {
       if (key.length > suffix.length + 2 && key.endsWith(normalizeSearchKey(suffix))) {
         return key.slice(0, -normalizeSearchKey(suffix).length)
@@ -3520,15 +3956,11 @@ function newBot(options) {
 
   function registryEntryMatchesQuery(entry, query) {
     if (!entry) return false
-    const queryKeys = Array.from(new Set([normalizeSearchKey(query), trimTurkishItemSuffixes(query)]))
-      .filter(Boolean)
+    const queryKeys = Array.from(
+      new Set([normalizeSearchKey(query), trimTurkishItemSuffixes(query)])
+    ).filter(Boolean)
     const queryTokenSets = queryKeys.map((key) => key.split('_').filter(Boolean))
-    const candidateKeys = [
-      entry.name,
-      entry.displayName,
-      entry.translationKey,
-      entry.type
-    ]
+    const candidateKeys = [entry.name, entry.displayName, entry.translationKey, entry.type]
       .map(normalizeSearchKey)
       .filter(Boolean)
 
@@ -3571,7 +4003,11 @@ function newBot(options) {
     const trimmedTargetKey = trimTurkishItemSuffixes(target)
     if (itemKey === targetKey || itemKey === trimmedTargetKey) return 0
     if (resolveBlockNames(target).map(normalizeSearchKey).includes(itemKey)) return 1
-    if (registryItemEntries().some((item) => item.name === itemName && registryEntryMatchesQuery(item, target))) {
+    if (
+      registryItemEntries().some(
+        (item) => item.name === itemName && registryEntryMatchesQuery(item, target)
+      )
+    ) {
       return 2
     }
     if (itemKey.endsWith(`_${targetKey}`) || itemKey.endsWith(`_${trimmedTargetKey}`)) return 3
@@ -4508,7 +4944,8 @@ function newBot(options) {
   function chooseExplorationTarget(reason = 'explore') {
     const origin = bot.entity.position
     const normalizedReason = normalizeCommandText(reason)
-    const preferredDistance = normalizedReason.includes('cave') || normalizedReason.includes('maden') ? 48 : 32
+    const preferredDistance =
+      normalizedReason.includes('cave') || normalizedReason.includes('maden') ? 48 : 32
     const directions = [
       { x: 1, z: 0 },
       { x: 0, z: 1 },
@@ -4530,11 +4967,13 @@ function newBot(options) {
         score: scoreExplorationTarget({ x, y, z }, normalizedReason)
       }
     })
-    return candidates.sort((a, b) => b.score - a.score)[0] || {
-      x: origin.x + preferredDistance,
-      y: origin.y,
-      z: origin.z
-    }
+    return (
+      candidates.sort((a, b) => b.score - a.score)[0] || {
+        x: origin.x + preferredDistance,
+        y: origin.y,
+        z: origin.z
+      }
+    )
   }
 
   function scoreExplorationTarget(position, reason = '') {
@@ -4751,14 +5190,20 @@ function newBot(options) {
       case 'follow_entity':
       case 'follow_user':
       case 'follow_player': {
-        return comeToPlayerIntent(resolveSpeakerTarget(args.name || args.player || args.target, username), args.near || 2, {
-          timeoutMs: 60000
-        })
+        return comeToPlayerIntent(
+          resolveSpeakerTarget(args.name || args.player || args.target, username),
+          args.near || 2,
+          {
+            timeoutMs: 60000
+          }
+        )
       }
       case 'protect':
       case 'protect_player':
       case 'guard_player':
-        return protectPlayerIntent(resolveSpeakerTarget(args.player || args.name || args.target, username))
+        return protectPlayerIntent(
+          resolveSpeakerTarget(args.player || args.name || args.target, username)
+        )
       case 'gather_wood':
         return mineNearestBlocks('wood', args.count || args.logs || 1, args.range || 96)
       case 'gather_resource':
@@ -4806,7 +5251,11 @@ function newBot(options) {
         mobility.rightClick()
         return { ok: true }
       case 'give_items':
-        return tossInventoryToPlayer(args.player || username, args.item || args.target || args.name)
+        return tossInventoryToPlayer(
+          args.player || username,
+          args.item || args.target || args.name,
+          args.count || args.amount
+        )
       case 'make_crafting_table_for_player':
       case 'crafting_table_for_player':
       case 'make_crafting_table':
@@ -4817,6 +5266,18 @@ function newBot(options) {
       case 'inventory':
         sendEvent(bot._client.username, 'chat', `Gemini inventory: ${getInventorySnapshot()}`)
         return { ok: true }
+      case 'open_container':
+        return inspectNearestContainer(args.type || args.container || 'chest', args.range || 32)
+      case 'store_items':
+        return storeItemsInNearestContainer(
+          Array.isArray(args.items) ? args.items : [args.item || args.target].filter(Boolean),
+          Array.isArray(args.except) ? args.except : []
+        )
+      case 'withdraw_items':
+        return withdrawItemsFromNearestContainer(
+          Array.isArray(args.items) ? args.items : [args.item || args.target].filter(Boolean),
+          args.count || args.amount || 1
+        )
       case 'explore':
         return exploreForObjective(args.reason || 'Gemini requested exploration')
       case 'smelt_item':
@@ -4833,8 +5294,7 @@ function newBot(options) {
     const args = action.args && typeof action.args === 'object' ? action.args : {}
     const target = action.target || args.target
     const player = resolveSpeakerTarget(args.player || args.name || target, username)
-    const v2CanHandle =
-      aiRuntime?.skills?.has?.(intent) || aiRuntime?.planner?.canPlan?.(intent)
+    const v2CanHandle = aiRuntime?.skills?.has?.(intent) || aiRuntime?.planner?.canPlan?.(intent)
     if (v2CanHandle) {
       return aiRuntime.executeIntent(intent, { ...args, target, player }, { username })
     }
@@ -4878,7 +5338,8 @@ function newBot(options) {
       if (stopToken !== aiHardStopToken) return { ok: false, reason: 'cancelled_by_stop', action }
       const before = buildActionFeedbackSnapshot()
       setExecutionStateForAction(action, attempt > 1 ? 'RECOVERING' : undefined)
-      const candidate = attempt === 1 ? action : buildRecoveryAction(action, lastResult, attempt, username)
+      const candidate =
+        attempt === 1 ? action : buildRecoveryAction(action, lastResult, attempt, username)
       recoveryUsed = attempt === 1 ? recoveryUsed : candidate
 
       if (!candidate) {
@@ -4995,7 +5456,9 @@ function newBot(options) {
         : { ok: false, reason: `move_not_reached:${distance.toFixed(1)}`, distance }
     }
     if (tool.includes('follow') || tool.includes('come_to_player')) {
-      const entity = findPlayerEntity(resolveSpeakerTarget(args.name || args.player || args.target, username))
+      const entity = findPlayerEntity(
+        resolveSpeakerTarget(args.name || args.player || args.target, username)
+      )
       const distance = entity?.position ? bot.entity.position.distanceTo(entity.position) : Infinity
       return distance <= clampNumber(args.near, 1, 8, 2) + 1.5 || bot.pathfinder?.isMoving?.()
         ? { ok: true, distance }
@@ -5024,7 +5487,9 @@ function newBot(options) {
       return result?.ok ? { ok: true } : { ok: false, reason: result?.reason || 'place_failed' }
     }
     if (tool === 'eat_food') {
-      return after.food > before.food || result?.ok ? { ok: true } : { ok: false, reason: 'food_not_improved' }
+      return after.food > before.food || result?.ok
+        ? { ok: true }
+        : { ok: false, reason: 'food_not_improved' }
     }
     if (tool === 'attack_entity') {
       return result?.ok ? { ok: true } : { ok: false, reason: result?.reason || 'attack_failed' }
@@ -5040,14 +5505,26 @@ function newBot(options) {
     if (reason.includes('missing_required_pickaxe')) {
       const requiredTool = result.requiredTool || reason.split(':')[1]
       return requiredTool
-        ? { tool: requiredTool, args: { count: 1 }, reason: `recover mining progression tool ${requiredTool}` }
+        ? {
+            tool: requiredTool,
+            args: { count: 1 },
+            reason: `recover mining progression tool ${requiredTool}`
+          }
         : undefined
     }
     if (reason.includes('missing_logs') || reason.includes('wood') || reason.includes('log')) {
-      return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover missing wood' }
+      return {
+        tool: 'mine_block',
+        args: { target: 'wood', count: 1 + attempt, range: 96 },
+        reason: 'recover missing wood'
+      }
     }
     if (reason.includes('crafting_table') || reason.includes('missing crafting')) {
-      return { tool: 'make_crafting_table_for_player', args: { player: username, logs: 3 }, reason: 'recover missing crafting table' }
+      return {
+        tool: 'make_crafting_table_for_player',
+        args: { player: username, logs: 3 },
+        reason: 'recover missing crafting table'
+      }
     }
     if (reason.includes('player_not_visible')) {
       return undefined
@@ -5065,18 +5542,43 @@ function newBot(options) {
           }
         : undefined
     }
-    if (tool === 'move_to' || reason.includes('path') || reason.includes('not_reached') || reason.includes('timeout')) {
+    if (
+      tool === 'move_to' ||
+      reason.includes('path') ||
+      reason.includes('not_reached') ||
+      reason.includes('timeout')
+    ) {
       return attempt === 2
-        ? { tool: 'move_to', args: { ...args, near: clampNumber(args.near, 2, 8, 3) }, reason: 'retry movement with wider arrival radius' }
+        ? {
+            tool: 'move_to',
+            args: { ...args, near: clampNumber(args.near, 2, 8, 3) },
+            reason: 'retry movement with wider arrival radius'
+          }
         : undefined
     }
     if (tool === 'mine_block' || tool === 'gather_resource' || reason.includes('unreachable')) {
       return attempt === 2
-        ? { tool: 'look_at', args: { target: args.target || args.block || 'nearest' }, reason: 're-scan target before mining retry' }
-        : { tool, args: { ...args, range: clampNumber(args.range, 32, 128, 96) }, reason: 'retry mining with wider search' }
+        ? {
+            tool: 'look_at',
+            args: { target: args.target || args.block || 'nearest' },
+            reason: 're-scan target before mining retry'
+          }
+        : {
+            tool,
+            args: { ...args, range: clampNumber(args.range, 32, 128, 96) },
+            reason: 'retry mining with wider search'
+          }
     }
-    if (tool === 'craft_item' || reason.includes('missing_material') || reason.includes('no_recipe')) {
-      return { tool: 'mine_block', args: { target: 'wood', count: 1 + attempt, range: 96 }, reason: 'recover crafting materials' }
+    if (
+      tool === 'craft_item' ||
+      reason.includes('missing_material') ||
+      reason.includes('no_recipe')
+    ) {
+      return {
+        tool: 'mine_block',
+        args: { target: 'wood', count: 1 + attempt, range: 96 },
+        reason: 'recover crafting materials'
+      }
     }
     return undefined
   }
@@ -5103,9 +5605,12 @@ function newBot(options) {
       return
     }
     const tool = String(action?.tool || '').toLowerCase()
-    if (tool === 'move_to' || tool.includes('follow') || tool.includes('come_to_player')) aiCore.debug.executionState = 'MOVING'
-    else if (tool === 'mine_block' || tool === 'gather_resource') aiCore.debug.executionState = 'MINING'
-    else if (tool === 'place_block' || tool === 'craft_item') aiCore.debug.executionState = 'BUILDING'
+    if (tool === 'move_to' || tool.includes('follow') || tool.includes('come_to_player'))
+      aiCore.debug.executionState = 'MOVING'
+    else if (tool === 'mine_block' || tool === 'gather_resource')
+      aiCore.debug.executionState = 'MINING'
+    else if (tool === 'place_block' || tool === 'craft_item')
+      aiCore.debug.executionState = 'BUILDING'
     else if (tool === 'attack_entity') aiCore.debug.executionState = 'COMBAT'
     else if (tool === 'explore') aiCore.debug.executionState = 'EXPLORING'
     else aiCore.debug.executionState = 'ACTING'
@@ -5125,7 +5630,9 @@ function newBot(options) {
   }
 
   function isSoftRecoverableReason(reason) {
-    return /path|timeout|unreachable|missing|no_recipe|not_found|not_reached|blocked|target/i.test(String(reason || ''))
+    return /path|timeout|unreachable|missing|no_recipe|not_found|not_reached|blocked|target/i.test(
+      String(reason || '')
+    )
   }
 
   function isCriticalState(snapshot) {
@@ -5133,8 +5640,14 @@ function newBot(options) {
   }
 
   function buildCriticalRecoveryAction(snapshot) {
-    if (Number(snapshot.food || 20) <= 4) return { tool: 'eat_food', args: {}, reason: 'critical hunger recovery' }
-    if (Number(snapshot.health || 0) <= 8) return { tool: 'explore', args: { reason: 'escape danger and recover health' }, reason: 'critical health recovery' }
+    if (Number(snapshot.food || 20) <= 4)
+      return { tool: 'eat_food', args: {}, reason: 'critical hunger recovery' }
+    if (Number(snapshot.health || 0) <= 8)
+      return {
+        tool: 'explore',
+        args: { reason: 'escape danger and recover health' },
+        reason: 'critical health recovery'
+      }
     return undefined
   }
 
@@ -5151,7 +5664,10 @@ function newBot(options) {
   async function askGeminiFromChat(username, message, optionsOverride = {}) {
     const allowActions = optionsOverride.allowActions !== false
     const inputKey = `${options.host || ''}:${getPrimaryBotName()}:${username}:${normalizeCommandText(message)}`
-    if (!optionsOverride.bypassDedupe && !rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)) {
+    if (
+      !optionsOverride.bypassDedupe &&
+      !rememberRecent(recentGeminiChatInputs, inputKey, GEMINI_CHAT_DEDUPE_MS)
+    ) {
       console.log('[GEMINI] Duplicate chat input ignored', { bot: bot.username, username, message })
       return
     }
@@ -5173,7 +5689,9 @@ function newBot(options) {
     try {
       prepareGeminiCommand()
       const actionableCommand = isActionableChatCommand(message)
-      const immediateAction = allowActions ? inferImmediateFallbackAction(username, message) : undefined
+      const immediateAction = allowActions
+        ? inferImmediateFallbackAction(username, message)
+        : undefined
       const observation = immediateAction ? undefined : buildGeminiObservation(username)
       let decision = immediateAction
         ? {
@@ -5187,7 +5705,8 @@ function newBot(options) {
             observation
           })
       if (!decision.ok) {
-        const fallbackAction = allowActions && actionableCommand ? inferFallbackAction(username, message) : undefined
+        const fallbackAction =
+          allowActions && actionableCommand ? inferFallbackAction(username, message) : undefined
         if (fallbackAction) {
           decision = { ok: true, actions: [fallbackAction], intent: fallbackAction.tool }
         } else {
@@ -5195,7 +5714,11 @@ function newBot(options) {
           return
         }
       }
-      let actions = allowActions ? (Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []) : []
+      let actions = allowActions
+        ? Array.isArray(decision.actions)
+          ? decision.actions.filter(Boolean)
+          : []
+        : []
       if (allowActions && actionableCommand && actions.length === 0) {
         const fallbackAction = inferFallbackAction(username, message)
         if (fallbackAction) {
@@ -5206,7 +5729,7 @@ function newBot(options) {
             message,
             observation: observation || buildGeminiObservation(username),
             previous: decision.raw || decision.reply || {}
-        })
+          })
           if (repaired.ok) {
             decision = repaired
             actions = Array.isArray(decision.actions) ? decision.actions.filter(Boolean) : []
@@ -5214,7 +5737,11 @@ function newBot(options) {
         }
       }
       if (decision.intent) {
-        sendEvent(bot._client.username, 'chat', `Gemini intent: ${String(decision.intent).slice(0, 180)}`)
+        sendEvent(
+          bot._client.username,
+          'chat',
+          `Gemini intent: ${String(decision.intent).slice(0, 180)}`
+        )
       }
       if (decision.reply) {
         const reply = String(decision.reply).slice(0, 240)
@@ -5225,16 +5752,15 @@ function newBot(options) {
         }
       }
       actions = allowActions
-        ? normalizeGeminiActions(actions, username, message).filter((action) =>
-            isActionAllowedForMessage(action, message)
-          ).slice(0, 5)
+        ? normalizeGeminiActions(actions, username, message)
+            .filter((action) => isActionAllowedForMessage(action, message))
+            .slice(0, 5)
         : []
       if (actions.length === 0) {
         if (!decision.reply && optionsOverride.defaultReply) {
           rememberBotAiOutput(getPrimaryBotName(), optionsOverride.defaultReply)
           bot.chat(optionsOverride.defaultReply)
-        }
-        else if (allowActions) {
+        } else if (allowActions) {
           sendEvent(
             bot._client.username,
             'chat',
@@ -5387,17 +5913,11 @@ function newBot(options) {
       'beni koru',
       'protect me'
     ]
-    return actionPhrases.some((phrase) => text.includes(phrase)) || hasAnyWord(words, actionWords) || hasAnyStem(words, [
-      'kir',
-      'kes',
-      'kaz',
-      'topla',
-      'gel',
-      'takip',
-      'koru',
-      'ver',
-      'koy'
-    ])
+    return (
+      actionPhrases.some((phrase) => text.includes(phrase)) ||
+      hasAnyWord(words, actionWords) ||
+      hasAnyStem(words, ['kir', 'kes', 'kaz', 'topla', 'gel', 'takip', 'koru', 'ver', 'koy'])
+    )
   }
 
   function isMovementTool(tool) {
@@ -5490,33 +6010,62 @@ function newBot(options) {
       return inferFallbackAction(username, message) || action
     }
     if (asksCome && (tool === 'move_to' || tool === 'follow_player' || tool === 'go_to')) {
-      return { tool: 'come_to_player', args: { player: username, near: args.near || 2 }, reason: 'intent normalized from come command' }
+      return {
+        tool: 'come_to_player',
+        args: { player: username, near: args.near || 2 },
+        reason: 'intent normalized from come command'
+      }
     }
     if (asksFollow && (tool === 'move_to' || tool === 'follow_player' || tool === 'go_to')) {
-      return { tool: 'follow_player', args: { player: username, near: args.near || 2 }, reason: 'intent normalized from follow command' }
+      return {
+        tool: 'follow_player',
+        args: { player: username, near: args.near || 2 },
+        reason: 'intent normalized from follow command'
+      }
     }
     if (asksProtect) {
-      return { tool: 'protect_player', args: { player: username }, reason: 'intent normalized from protect command' }
+      return {
+        tool: 'protect_player',
+        args: { player: username },
+        reason: 'intent normalized from protect command'
+      }
     }
     if (tool === 'come_to_player' || tool === 'come_to_me' || tool === 'go_to_player') {
       return {
         tool: 'come_to_player',
-        args: { ...args, player: resolveSpeakerTarget(args.player || semanticTarget, username), near: args.near || 2 },
+        args: {
+          ...args,
+          player: resolveSpeakerTarget(args.player || semanticTarget, username),
+          near: args.near || 2
+        },
         reason: action.reason || 'come intent normalized'
       }
     }
     if (tool === 'follow_player' || tool === 'follow') {
       return {
         tool: 'follow_player',
-        args: { ...args, player: resolveSpeakerTarget(args.player || semanticTarget, username), near: args.near || 2 },
+        args: {
+          ...args,
+          player: resolveSpeakerTarget(args.player || semanticTarget, username),
+          near: args.near || 2
+        },
         reason: action.reason || 'follow intent normalized'
       }
     }
     if (tool === 'gather_resource' || tool === 'obtain_resource' || tool === 'mine_block') {
-      const resource = normalizeResourceTarget(args.resource || args.block || args.name || semanticTarget, message)
+      const resource = normalizeResourceTarget(
+        args.resource || args.block || args.name || semanticTarget,
+        message
+      )
       return {
         tool: 'gather_resource',
-        args: { ...args, resource, target: resource, count: args.count || 1, range: args.range || 64 },
+        args: {
+          ...args,
+          resource,
+          target: resource,
+          count: args.count || 1,
+          range: args.range || 64
+        },
         reason: action.reason || 'resource intent normalized'
       }
     }
@@ -5553,7 +6102,11 @@ function newBot(options) {
     }
     const text = normalizeCommandText(message)
     const words = text.split(' ').filter(Boolean)
-    if (hasAnyWord(words, ['ot', 'grass', 'cimen', 'Ã§imen', 'bitki', 'plant']) || hasAnyStem(words, ['ot', 'cimen', 'bitki'])) return 'grass'
+    if (
+      hasAnyWord(words, ['ot', 'grass', 'cimen', 'Ã§imen', 'bitki', 'plant']) ||
+      hasAnyStem(words, ['ot', 'cimen', 'bitki'])
+    )
+      return 'grass'
     if (hasAnyWord(words, ['kum', 'sand'])) return 'sand'
     if (hasAnyWord(words, ['toprak', 'dirt', 'ground'])) return 'dirt'
     if (hasAnyWord(words, ['tas', 'taÅŸ', 'stone', 'cobble'])) return 'stone'
@@ -5631,7 +6184,11 @@ function newBot(options) {
       text.includes('come to me') ||
       hasAnyWord(words, ['gel', 'come'])
     ) {
-      return { tool: 'come_to_player', args: { player: username, near: 2 }, reason: 'fallback come intent' }
+      return {
+        tool: 'come_to_player',
+        args: { player: username, near: 2 },
+        reason: 'fallback come intent'
+      }
     }
 
     if (
@@ -5644,13 +6201,25 @@ function newBot(options) {
       text.includes('peşimden gel') ||
       hasAnyWord(words, ['follow'])
     ) {
-      return { tool: 'follow_player', args: { player: username, near: 2 }, reason: 'fallback follow intent' }
+      return {
+        tool: 'follow_player',
+        args: { player: username, near: 2 },
+        reason: 'fallback follow intent'
+      }
     }
     if (hasAnyWord(words, ['kesfet', 'keşfet', 'explore', 'dolas', 'dolaş'])) {
-      return { tool: 'explore', args: { reason: text || 'fallback explore' }, reason: 'fallback explore command' }
+      return {
+        tool: 'explore',
+        args: { reason: text || 'fallback explore' },
+        reason: 'fallback explore command'
+      }
     }
     if (coordinates && hasAnyWord(words, ['git', 'goto', 'move', 'yuru', 'yürü'])) {
-      return { tool: 'move_to', args: { ...coordinates, near: 2 }, reason: 'fallback coordinate move command' }
+      return {
+        tool: 'move_to',
+        args: { ...coordinates, near: 2 },
+        reason: 'fallback coordinate move command'
+      }
     }
     if (hasAnyWord(words, ['ye', 'eat', 'yemek', 'ac', 'aç', 'hungry'])) {
       return { tool: 'eat_food', args: {}, reason: 'fallback eat command' }
@@ -5699,7 +6268,7 @@ function newBot(options) {
     if (hasAnyWord(words, ['ver', 'give', 'at', 'birak', 'bırak'])) {
       return {
         tool: 'give_items',
-        args: { player: username, item: extractGiveTarget(words) },
+        args: { player: username, item: extractGiveTarget(words), count: extractGiveAmount(words) },
         reason: 'fallback give command'
       }
     }
@@ -5739,7 +6308,9 @@ function newBot(options) {
   function inferImmediateFallbackAction(username, message) {
     const action = inferFallbackAction(username, message)
     const tool = String(action?.tool || '').toLowerCase()
-    return ['come_to_player', 'follow_player', 'look_at', 'stop', 'status', 'inventory'].includes(tool)
+    return ['come_to_player', 'follow_player', 'look_at', 'stop', 'status', 'inventory'].includes(
+      tool
+    )
       ? action
       : undefined
   }
@@ -5792,24 +6363,30 @@ function newBot(options) {
       'please'
     ])
 
+    const collectTarget = (items) => {
+      const targetWords = items
+        .filter((word) => word && !ignored.has(word) && !Number.isFinite(Number(word)))
+        .slice(0, 4)
+      return targetWords.join('_') || undefined
+    }
+
     for (const verb of giveVerbs) {
       const index = words.indexOf(verb)
       if (index < 0) continue
 
-      for (let cursor = index + 1; cursor < words.length; cursor++) {
-        const word = words[cursor]
-        if (!word || ignored.has(word) || Number.isFinite(Number(word))) continue
-        return word
-      }
+      const after = collectTarget(words.slice(index + 1))
+      if (after) return after
 
-      for (let cursor = index - 1; cursor >= 0; cursor--) {
-        const word = words[cursor]
-        if (!word || ignored.has(word) || Number.isFinite(Number(word))) continue
-        return word
-      }
+      const before = collectTarget(words.slice(0, index).reverse())
+      if (before) return before
     }
 
     return undefined
+  }
+
+  function extractGiveAmount(words) {
+    const amount = words.map(Number).find((value) => Number.isFinite(value) && value > 0)
+    return amount ? Math.min(Math.floor(amount), 2304) : undefined
   }
 
   function extractCommandCoordinates(words) {
@@ -5826,7 +6403,7 @@ function newBot(options) {
     return `wood ${wood.logs} logs/${wood.planks} planks, sticks ${getStickCount()}, stone ${getStoneProgress()}, coal ${inventoryCount('coal')}, iron ${getIronProgress()}, gold ${getGoldProgress()}, copper ${getCopperProgress()}, diamond ${getDiamondProgress()}, obsidian ${getObsidianProgress()}`
   }
 
-  async function tossInventoryToPlayer(playerName, target) {
+  async function tossInventoryToPlayer(playerName, target, requestedCount) {
     const resolvedName = resolvePlayerName(playerName)
     const entity = findPlayerEntity(resolvedName)
     if (!entity) {
@@ -5837,16 +6414,27 @@ function newBot(options) {
     const normalizedTarget = normalizeBlockName(target)
     const giveAll = isGiveAllTarget(normalizedTarget)
     if (!normalizedTarget) {
-      sendEvent(bot._client.username, 'chat', 'Pathfinder: item name required, say "hepsini" to give all')
+      sendEvent(
+        bot._client.username,
+        'chat',
+        'Pathfinder: item name required, say "hepsini" to give all'
+      )
       return { ok: false, reason: 'item_target_required' }
     }
 
     await mobility.reach(entity.position, { near: 2, timeoutMs: 22000 })
 
+    const amount = Number.isFinite(Number(requestedCount))
+      ? Math.max(1, Math.floor(Number(requestedCount)))
+      : undefined
     const matchingItems = bot.inventory
       .items()
       .filter((item) => (giveAll ? true : itemMatchesTarget(item.name, normalizedTarget)))
-      .sort((a, b) => itemTargetPriority(a.name, normalizedTarget) - itemTargetPriority(b.name, normalizedTarget))
+      .sort(
+        (a, b) =>
+          itemTargetPriority(a.name, normalizedTarget) -
+          itemTargetPriority(b.name, normalizedTarget)
+      )
     const items = giveAll ? matchingItems : matchingItems.slice(0, 1)
 
     if (items.length === 0) {
@@ -5854,18 +6442,23 @@ function newBot(options) {
       return { ok: false, reason: `item_not_found:${normalizedTarget}` }
     }
 
+    let tossedCount = 0
     for (const item of items) {
-      await bot.tossStack(item).catch((error) => {
-        sendEvent(bot._client.username, 'chat', `Pathfinder give error: ${error.message}`)
+      const count = giveAll ? item.count : Math.min(amount || item.count, item.count)
+      await bot.toss(item.type, item.metadata ?? null, count).catch(async (error) => {
+        await bot.tossStack(item).catch(() => {
+          sendEvent(bot._client.username, 'chat', `Pathfinder give error: ${error.message}`)
+        })
       })
+      tossedCount += count
       await delay(150)
     }
     sendEvent(
       bot._client.username,
       'chat',
-      `Pathfinder: gave ${giveAll ? 'all items' : items[0].name} to ${resolvedName}`
+      `Pathfinder: gave ${giveAll ? 'all items' : `${tossedCount} ${items[0].name}`} to ${resolvedName}`
     )
-    return { ok: true, item: giveAll ? 'all' : items[0].name, count: items.length }
+    return { ok: true, item: giveAll ? 'all' : items[0].name, count: tossedCount }
   }
 
   function normalizeCommandText(text) {
@@ -6112,8 +6705,13 @@ function newBot(options) {
     }
   }
 
-  function sendAiPlan() {
-    const goal = getSelectedAiGoal()
+  function sendAiPlan(goal = getSelectedAiGoal()) {
+    const objective = getGoalObjective(goal)
+    sendEvent(
+      bot._client.username,
+      'chat',
+      `AI plan objective: ${objective.type}${objective.target ? ` ${objective.target}` : ''} - ${objective.reason || 'no reason'}`
+    )
     sendLocalLlmPlan(goal).catch((error) => {
       sendEvent(bot._client.username, 'chat', `Gemini plan error: ${error.message}`)
     })
@@ -6156,7 +6754,8 @@ function newBot(options) {
 
   function handleAiChat(username, message) {
     const normalizedSender = normalizeCommandText(username)
-    if (!configBoolean('aiMode') || !aiSpawnReady || getAiMentionNames().includes(normalizedSender)) return
+    if (!configBoolean('aiMode') || !aiSpawnReady || getAiMentionNames().includes(normalizedSender))
+      return
     aiMemory.owner = username
     const text = normalizeCommandText(message)
     const mentionNames = getAiMentionNames()
@@ -6266,17 +6865,16 @@ function newBot(options) {
       return
     }
     if (['plan', 'hedef', 'goal'].includes(words[0])) {
+      sendAiPlan(words[1] || getSelectedAiGoal())
+      return
+    }
+    if (['plan', 'hedef', 'goal'].includes(words[0])) {
       askGeminiFromChat(
         username,
         words.slice(1).join(' ') || 'Durumu incele, hedef seç ve uygun aksiyonu uygula.'
       )
       return
     }
-    askGeminiFromChat(username, cleaned).catch((error) => {
-      sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
-    })
-    return
-
     if (['portal', 'nether'].includes(words[0])) {
       sendPortalPlan()
       return
@@ -6361,9 +6959,11 @@ function newBot(options) {
       (words.includes('beni') && words.includes('izle'))
     ) {
       const distance = words.map(Number).find((value) => Number.isFinite(value))
-      comeToPlayerIntent(username, clampNumber(distance, 1, 8, 2), { timeoutMs: 60000 }).catch((error) => {
-        sendEvent(bot._client.username, 'chat', `Skill follow error: ${error.message}`)
-      })
+      comeToPlayerIntent(username, clampNumber(distance, 1, 8, 2), { timeoutMs: 60000 }).catch(
+        (error) => {
+          sendEvent(bot._client.username, 'chat', `Skill follow error: ${error.message}`)
+        }
+      )
       return
     }
     if (['dur', 'stop', 'iptal', 'cancel'].includes(words[0])) {
@@ -6371,7 +6971,7 @@ function newBot(options) {
       return
     }
     if (['ver', 'give'].includes(words[0])) {
-      tossInventoryToPlayer(username, extractGiveTarget(words))
+      tossInventoryToPlayer(username, extractGiveTarget(words), extractGiveAmount(words))
       return
     }
 
@@ -6385,6 +6985,9 @@ function newBot(options) {
       )
       return
     }
+    askGeminiFromChat(username, cleaned).catch((error) => {
+      sendEvent(bot._client.username, 'chat', `Gemini error: ${error.message}`)
+    })
   }
 
   function runPathfinderCommand(args) {
@@ -6623,9 +7226,11 @@ function newBot(options) {
       }
       case 'follow':
       case 'f': {
-        comeToPlayerIntent(args[1], clampNumber(args[2], 1, 8, 2), { timeoutMs: 60000 }).catch((error) => {
-          sendEvent(bot._client.username, 'chat', `Mobility follow error: ${error.message}`)
-        })
+        comeToPlayerIntent(args[1], clampNumber(args[2], 1, 8, 2), { timeoutMs: 60000 }).catch(
+          (error) => {
+            sendEvent(bot._client.username, 'chat', `Mobility follow error: ${error.message}`)
+          }
+        )
         sendEvent(bot._client.username, 'chat', `Mobility: adaptive following ${args[1]}`)
         break
       }
@@ -6664,7 +7269,7 @@ function newBot(options) {
       }
       case 'give':
       case 'ver':
-        tossInventoryToPlayer(args[1], args[2])
+        tossInventoryToPlayer(args[1], args[2], args[3])
         break
       case 'stop':
       case 'dur':
@@ -6734,7 +7339,7 @@ function newBot(options) {
         bot.setQuickBarSlot(parseInt(optionsArray[0] ? optionsArray[0] : 0))
         break
       case 'useheld':
-        bot.activateItem()
+        bot.activateItem(normalizeHand(optionsArray[0]) === 'offhand')
         break
       case 'winclick':
         bot.clickWindow(parseInt(optionsArray[0]), parseInt(optionsArray[1]), 0)

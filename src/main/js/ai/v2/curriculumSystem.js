@@ -132,7 +132,8 @@ export class CurriculumSystem {
             timeEstimate: 300,
             prerequisites: ['craft_stone_pickaxe'],
             skills: ['mine_ore'],
-            validation: (context) => this.hasItem(context, 'coal', 8) || this.hasItem(context, 'charcoal', 8)
+            validation: (context) =>
+              this.hasItem(context, 'coal', 8) || this.hasItem(context, 'charcoal', 8)
           },
           {
             id: 'build_basic_shelter',
@@ -218,7 +219,7 @@ export class CurriculumSystem {
             timeEstimate: 1200,
             prerequisites: ['build_basic_shelter'],
             skills: ['explore', 'search_structure'],
-            validation: (context) => this.memory?.state?.longTerm?.knownLocations?.village?.length > 0,
+            validation: () => this.memory?.state?.longTerm?.knownLocations?.village?.length > 0,
             optional: true
           }
         ],
@@ -378,7 +379,9 @@ export class CurriculumSystem {
 
   hasArmor(context, type, minPieces) {
     const inventory = context?.inventory || []
-    const armorPieces = inventory.filter((i) => normalizeName(i.name).includes(type) && /helmet|chestplate|leggings|boots/.test(i.name))
+    const armorPieces = inventory.filter(
+      (i) => normalizeName(i.name).includes(type) && /helmet|chestplate|leggings|boots/.test(i.name)
+    )
     return armorPieces.length >= minPieces
   }
 

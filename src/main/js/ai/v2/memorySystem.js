@@ -30,16 +30,16 @@ export class MemorySystem {
           ...JSON.parse(fs.readFileSync(this.basePath, 'utf8'))
         }
       }
-    } catch {
-      
+    } catch (error) {
+      this.lastLoadError = error.message
     }
   }
 
   save() {
     try {
       fs.writeFileSync(this.basePath, JSON.stringify(this.state, null, 2))
-    } catch {
-      
+    } catch (error) {
+      this.lastSaveError = error.message
     }
   }
 
@@ -82,9 +82,11 @@ export class MemorySystem {
 
   prune() {
     for (const key of ['discoveries', 'failures', 'successes', 'deaths', 'lessons']) {
-      if (this.state.longTerm[key].length > 300) this.state.longTerm[key].splice(0, this.state.longTerm[key].length - 300)
+      if (this.state.longTerm[key].length > 300)
+        this.state.longTerm[key].splice(0, this.state.longTerm[key].length - 300)
     }
-    if (this.state.learning.length > 500) this.state.learning.splice(0, this.state.learning.length - 500)
+    if (this.state.learning.length > 500)
+      this.state.learning.splice(0, this.state.learning.length - 500)
     this.save()
   }
 

@@ -14,7 +14,8 @@ export class GoalManager {
       reward: Number(goal.reward || 1),
       risk: Number(goal.risk || 0),
       urgency: Number(goal.urgency || 0),
-      dependencies: goal.dependencies || this.knowledgeGraph?.dependencies?.(goal.name || goal.intent) || [],
+      dependencies:
+        goal.dependencies || this.knowledgeGraph?.dependencies?.(goal.name || goal.intent) || [],
       status: 'queued',
       createdAt: now(),
       ...goal
@@ -26,7 +27,10 @@ export class GoalManager {
   next() {
     return this.goals
       .filter((goal) => goal.status === 'queued' || goal.status === 'active')
-      .sort((a, b) => b.priority + b.reward + b.urgency - b.risk - (a.priority + a.reward + a.urgency - a.risk))[0]
+      .sort(
+        (a, b) =>
+          b.priority + b.reward + b.urgency - b.risk - (a.priority + a.reward + a.urgency - a.risk)
+      )[0]
   }
 
   complete(id) {

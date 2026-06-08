@@ -4,7 +4,8 @@ export class SkillRegistry {
   }
 
   register({ name, description, argumentsSchema = {}, execute }) {
-    if (!name || typeof execute !== 'function') throw new Error(`Invalid skill registration: ${name}`)
+    if (!name || typeof execute !== 'function')
+      throw new Error(`Invalid skill registration: ${name}`)
     this.skills.set(name, { name, description, argumentsSchema, execute })
   }
 
@@ -26,7 +27,12 @@ export class SkillRegistry {
     const startedAt = Date.now()
     try {
       const result = await skill.execute(args, context)
-      return { ok: result?.ok !== false, ...result, skill: name, durationMs: Date.now() - startedAt }
+      return {
+        ok: result?.ok !== false,
+        ...result,
+        skill: name,
+        durationMs: Date.now() - startedAt
+      }
     } catch (error) {
       return { ok: false, reason: error.message, skill: name, durationMs: Date.now() - startedAt }
     }

@@ -1,5 +1,14 @@
 export class AgentCoordinator {
-  constructor({ engines, goalManager, planner, knowledgeGraph, skills, survival, learning, reflection } = {}) {
+  constructor({
+    engines,
+    goalManager,
+    planner,
+    knowledgeGraph,
+    skills,
+    survival,
+    learning,
+    reflection
+  } = {}) {
     this.engines = engines
     this.goalManager = goalManager
     this.planner = planner
@@ -26,14 +35,22 @@ export class AgentCoordinator {
     const survivalResult = await this.survival?.overrideIfNeeded?.(context)
     if (survivalResult) return survivalResult
 
-    const plan = this.expandPlanWithPreflight(this.planner.plan({ name, args, ...context }), args, context)
+    const plan = this.expandPlanWithPreflight(
+      this.planner.plan({ name, args, ...context }),
+      args,
+      context
+    )
     let lastResult = { ok: true }
     for (const step of plan) {
       if (this.stepAlreadySatisfied(step, context)) {
         lastResult = { ok: true, skipped: true, reason: 'already_available', skill: step.skill }
         continue
       }
-      lastResult = await this.skills.execute(step.skill, { ...args, ...step.args }, { ...context, agent: this.activeAgent, plan })
+      lastResult = await this.skills.execute(
+        step.skill,
+        { ...args, ...step.args },
+        { ...context, agent: this.activeAgent, plan }
+      )
       this.learning?.collectExperience?.(step, context, lastResult)
       if (!lastResult?.ok) {
         this.reflection?.reflect?.('skill_failed', lastResult)
@@ -57,12 +74,24 @@ export class AgentCoordinator {
           success: 'build material available'
         })
       }
-      if (step.skill === 'craft_item' && step.args?.item && !this.hasAnyCraftInput(step.args.item, inventory)) {
+      if (
+        step.skill === 'craft_item' &&
+        step.args?.item &&
+        !this.hasAnyCraftInput(step.args.item, inventory)
+      ) {
         expanded.push(...this.materialStepsForCraft(step.args.item))
       }
-      if ((step.skill === 'explore_cave' || step.skill === 'explore') && /cave|mine|maden/i.test(step.args?.reason || args.reason || step.skill)) {
+      if (
+        (step.skill === 'explore_cave' || step.skill === 'explore') &&
+        /cave|mine|maden/i.test(step.args?.reason || args.reason || step.skill)
+      ) {
         const hasPickaxe = inventory.some((item) => /pickaxe/.test(item.name))
-        if (!hasPickaxe) expanded.push(...(this.planner?.stepsFromGoal?.('wooden_pickaxe', { observation: context.observation }) || []))
+        if (!hasPickaxe)
+          expanded.push(
+            ...(this.planner?.stepsFromGoal?.('wooden_pickaxe', {
+              observation: context.observation
+            }) || [])
+          )
       }
       expanded.push(step)
     }
@@ -71,9 +100,7 @@ export class AgentCoordinator {
 
   inventory(context = {}) {
     return (
-      context.observation?.world?.inventory ||
-      context.observation?.local?.inventorySummary ||
-      []
+      context.observation?.world?.inventory || context.observation?.local?.inventorySummary || []
     )
   }
 
@@ -87,7 +114,8 @@ export class AgentCoordinator {
   stepAlreadySatisfied(step, context) {
     const target = step.args?.resource || step.args?.target || step.args?.item
     if (!target) return false
-    if (step.skill === 'gather_wood') return this.inventory(context).some((item) => /log|planks/.test(item.name))
+    if (step.skill === 'gather_wood')
+      return this.inventory(context).some((item) => /log|planks/.test(item.name))
     if (step.skill === 'gather_resource') return this.itemCount(context, target) > 0
     if (step.skill === 'craft_item') return this.itemCount(context, target) > 0
     return false
@@ -95,14 +123,23 @@ export class AgentCoordinator {
 
   hasAnyCraftInput(item, inventory) {
     const target = String(item || '').toLowerCase()
-    const requirements = this.knowledgeGraph?.solutions?.(target)?.flatMap((solution) => solution.requires || []) || []
+    const requirements =
+      this.knowledgeGraph?.solutions?.(target)?.flatMap((solution) => solution.requires || []) || []
     if (requirements.length) {
-      return requirements.some((requirement) => this.itemCount({ observation: { world: { inventory } } }, requirement.item) >= requirement.count)
+      return requirements.some(
+        (requirement) =>
+          this.itemCount({ observation: { world: { inventory } } }, requirement.item) >=
+          requirement.count
+      )
     }
     if (target.includes('plank')) return inventory.some((entry) => /log/.test(entry.name))
     if (target.includes('stick')) return inventory.some((entry) => /planks/.test(entry.name))
-    if (target.includes('crafting_table')) return inventory.some((entry) => /planks|log/.test(entry.name))
-    if (target.includes('pickaxe')) return inventory.some((entry) => /planks|stick|cobblestone|iron_ingot|diamond/.test(entry.name))
+    if (target.includes('crafting_table'))
+      return inventory.some((entry) => /planks|log/.test(entry.name))
+    if (target.includes('pickaxe'))
+      return inventory.some((entry) =>
+        /planks|stick|cobblestone|iron_ingot|diamond/.test(entry.name)
+      )
     return true
   }
 
@@ -116,7 +153,11 @@ export class AgentCoordinator {
     if (target.includes('stone') || target.includes('pickaxe')) {
       return [
         { skill: 'gather_wood', args: { count: 1, range: 96 }, success: 'wood available' },
-        { skill: 'gather_resource', args: { resource: 'stone', count: 3, range: 64 }, success: 'stone available' }
+        {
+          skill: 'gather_resource',
+          args: { resource: 'stone', count: 3, range: 64 },
+          success: 'stone available'
+        }
       ]
     }
     return []
